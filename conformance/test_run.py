@@ -1,6 +1,22 @@
+import subprocess
+import sys
 import unittest
+from pathlib import Path
 
 from run import analyze_generated_character_pages, compare_text, normalize_selection_text
+
+
+class ReaderAvailabilityImportTests(unittest.TestCase):
+    def test_importlib_util_is_available_in_clean_python_process(self):
+        conformance_dir = Path(__file__).resolve().parent
+        script = (
+            "import importlib, sys; "
+            "assert not hasattr(importlib, 'util'); "
+            f"sys.path.insert(0, {str(conformance_dir)!r}); "
+            "import run; "
+            "run.reader_availability(None)"
+        )
+        subprocess.run([sys.executable, "-S", "-c", script], check=True)
 
 
 class SelectionNormalizationTests(unittest.TestCase):

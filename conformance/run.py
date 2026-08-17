@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import difflib
 import importlib
+import importlib.util
 import json
 import os
 from pathlib import Path
