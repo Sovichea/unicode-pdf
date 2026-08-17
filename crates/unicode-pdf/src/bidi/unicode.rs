@@ -4,7 +4,7 @@ use crate::bidi::{BidiError, BidiParagraph, BidiResolver, BidiRun};
 use crate::core::{SourceRange, TextDirection};
 use unicode_bidi::{BidiInfo, Level};
 
-/// Pure-Rust BiDi resolver backed by `unicode-bidi`.
+/// Pure-Rust `BiDi` resolver backed by `unicode-bidi`.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct UnicodeBidiResolver;
 

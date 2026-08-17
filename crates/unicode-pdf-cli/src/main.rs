@@ -592,7 +592,7 @@ fn emit_pdf(font_path: &str, text_path: &str, output_path: &str) -> Result<(), S
     let bidi = DefaultBidiResolver::new().map_err(|error| error.to_string())?;
     let mut allocator = CidAllocator::new();
     let (plans, metadata, units_per_em) =
-        plan_bidi_document(&font, &text, &shaper, &bidi, &mut allocator)?;
+        plan_bidi_document(&font, &text, shaper, bidi, &mut allocator)?;
 
     let synthetic = synthesize_truetype_composites(&font, allocator.entries())
         .map_err(|error| error.to_string())?;
@@ -625,8 +625,8 @@ fn emit_pdf(font_path: &str, text_path: &str, output_path: &str) -> Result<(), S
 fn plan_bidi_document(
     font: &[u8],
     text: &str,
-    shaper: &DefaultShaper,
-    bidi: &DefaultBidiResolver,
+    shaper: DefaultShaper,
+    bidi: DefaultBidiResolver,
     allocator: &mut CidAllocator,
 ) -> Result<(Vec<TextPlan>, Vec<PlannedRunMeta>, u32), String> {
     let mut plans = Vec::new();

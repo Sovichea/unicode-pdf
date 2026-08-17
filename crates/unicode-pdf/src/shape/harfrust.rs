@@ -1,4 +1,4 @@
-//! Pure-Rust HarfRust shaping backend.
+//! Pure-Rust `HarfRust` shaping backend.
 
 use crate::core::{logical_units_from_shaped_glyphs, LogicalTextRun, ShapedGlyph, TextDirection};
 use crate::shape::{ShapeError, ShapeOptions, ShapeOutput, TextShaper};
@@ -6,15 +6,15 @@ use harfrust::{
     Direction, FontRef, ShapeOptions as HarfRustShapeOptions, ShaperData, UnicodeBuffer,
 };
 
-/// Pure-Rust text shaper backed by HarfRust.
+/// Pure-Rust text shaper backed by `HarfRust`.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct HarfRustShaper;
 
 impl HarfRustShaper {
-    /// Creates a HarfRust shaper.
+    /// Creates a `HarfRust` shaper.
     ///
     /// This mirrors the fallible constructor of the optional system-HarfBuzz
-    /// backend, although HarfRust itself requires no runtime library loading.
+    /// backend, although `HarfRust` itself requires no runtime library loading.
     ///
     /// # Errors
     ///
