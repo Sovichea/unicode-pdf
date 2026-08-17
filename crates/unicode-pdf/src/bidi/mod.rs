@@ -6,7 +6,7 @@
 
 use std::fmt;
 
-use unicode_pdf_core::{SourceRange, TextDirection};
+use crate::core::{SourceRange, TextDirection};
 
 /// One resolved directional run inside a logical paragraph.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -93,3 +93,9 @@ impl fmt::Display for BidiError {
 }
 
 impl std::error::Error for BidiError {}
+
+#[cfg(all(feature = "system-fribidi", unix))]
+#[allow(unsafe_code)]
+pub mod system_fribidi;
+#[cfg(feature = "unicode-bidi")]
+pub mod unicode;

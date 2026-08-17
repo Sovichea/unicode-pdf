@@ -59,7 +59,7 @@ visual key = (
 
 ## 5. BiDi analysis and PDF text order
 
-`unicode-pdf-bidi` resolves directional spans before shaping. The current FriBidi adapter returns UTF-8 source ranges, embedding levels, directions, and visual span ranks while keeping the span array in logical source order.
+The `bidi` module resolves directional spans before shaping. The default public-crate configuration uses the pure-Rust `unicode-bidi` backend. An optional runtime-loaded FriBidi adapter is retained for reference/conformance testing. Both adapters return UTF-8 source ranges, embedding levels, directions, and visual span ranks while keeping the span array in logical source order.
 
 Each span is then shaped with an explicit HarfBuzz direction. Semantic text operators follow logical source order, while span placement follows the resolved visual rank and HarfBuzz geometry.
 
@@ -112,23 +112,22 @@ This metadata is separate from PDF text extraction and should not be required by
 
 ## 10. BiDi and shaping backend boundaries
 
-`unicode-pdf-bidi` defines the safe BiDi contract. `unicode-pdf-bidi-fribidi` dynamically loads GNU FriBidi and is isolated from the PDF writer. It converts UTF-8 to UTF-32, obtains embedding levels and logical-to-visual mappings, then reconstructs UTF-8 directional ranges.
+The public `unicode-pdf` crate defines the safe `BidiResolver` contract. The default backend is pure Rust through `unicode-bidi`. The optional `system-fribidi` feature dynamically loads GNU FriBidi on Unix and keeps the FFI isolated inside the `bidi` module.
 
 The visual run rank is used only for page placement. The run list itself remains in source-logical order.
 
 ### Shaping
 
+The public crate defines the safe `TextShaper` contract. The default backend is HarfRust 0.13, so normal consumers do not need native shaping libraries. The optional `system-harfbuzz` feature dynamically loads the system HarfBuzz shared library on Unix and is used as a reference backend in conformance testing.
 
-`unicode-pdf-shape` defines the safe shaping contract. The current `unicode-pdf-shape-harfbuzz` adapter dynamically loads the system HarfBuzz shared library and is the only workspace crate that permits `unsafe` code. This keeps FFI isolated from the logical PDF and font-writing layers.
-
-The adapter shapes an in-memory font, retains HarfBuzz UTF-8 byte cluster offsets, accumulates visual pen positions, then converts the result into `LogicalPdfUnit` records in source order.
+Both adapters shape an in-memory font, retain UTF-8 byte cluster offsets, accumulate visual pen positions, then convert the result into `LogicalPdfUnit` records in source order. `Document::finish_with` also lets advanced applications provide their own shaper and BiDi resolver without changing the PDF model.
 
 ## 11. Current TrueType synthesis scope
 
 The Rust synthesizer currently targets horizontal `glyf`-based TrueType fonts. It appends one reusable composite glyph per unique CID entry and keeps the original component glyphs. It does not yet subset unused base glyphs, support CFF/CFF2 outlines, TrueType collections, variable-font instance materialization, or vertical writing.
 ## 12. Font fallback and paragraph layout
 
-`unicode-pdf-layout` is the first real layout layer. It parses Unicode coverage from each candidate font's TrueType/OpenType `cmap` table, chooses the first covering font, and shapes maximal same-font spans rather than guessing coverage from font names. Neutral whitespace/punctuation prefers the surrounding font when that font covers it.
+The `layout` module is the built-in document layout layer. It parses Unicode coverage from each candidate font's TrueType/OpenType `cmap` table, chooses the first covering font, and shapes maximal same-font spans rather than guessing coverage from font names. Neutral whitespace/punctuation prefers the surrounding font when that font covers it.
 
 Paragraphs are retained as first-class semantic objects with exact source byte ranges and Unicode. Visual wrapping consumes break opportunities separately from that text. Default whitespace opportunities are available for space-delimited scripts, while callers can supply UTF-8 byte offsets from ICU4X, a Khmer segmenter, or another language-aware boundary provider. Oversize unbreakable segments currently fall back to Unicode scalar boundaries. Each final visual line is then resolved with FriBidi and shaped with HarfBuzz, so line-level BiDi ordering is computed after the wrap decision. Layout records retain global UTF-8 source ranges.
 

@@ -58,3 +58,12 @@ All notable changes to this project will be documented here.
 - Synthetic cluster glyph PDF proof-of-concept.
 - PDF.js interoperability investigation patch and validation notes.
 - Apache-2.0 license and contribution guide.
+
+## 0.1.0-alpha.3 - unreleased
+
+- Consolidate the research workspace into one public `unicode-pdf` library crate plus a non-published development CLI.
+- Make HarfRust 0.13 and `unicode-bidi` the default pure-Rust shaping/BiDi stack.
+- Keep runtime-loaded system HarfBuzz and FriBidi behind explicit reference-backend features.
+- Add a high-level `Document` façade, `render_text`, and `Document::finish_with` for caller-provided backends.
+- Add runtime-font examples for Khmer, multilingual fallback, and external line-break opportunities.
+- Add dual CI coverage for pure-Rust and native reference backends.

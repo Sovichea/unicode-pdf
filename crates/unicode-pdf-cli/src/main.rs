@@ -5,20 +5,13 @@ use std::fmt::Write as _;
 use std::fs;
 use std::process::ExitCode;
 
-use unicode_pdf_bidi::BidiResolver;
-use unicode_pdf_bidi_fribidi::FriBidiResolver;
-use unicode_pdf_core::{FontId, TextDirection};
-use unicode_pdf_font::{synthesize_truetype_composites, CidAllocator};
-use unicode_pdf_layout::{
-    layout_document, layout_document_with_break_opportunities, FontSet, GeometryIndex, LayoutFont,
-    LayoutOptions,
-};
-use unicode_pdf_shape::{ShapeOptions, TextShaper};
-use unicode_pdf_shape_harfbuzz::HarfBuzzShaper;
-use unicode_pdf_write::{
-    build_type0_document_pdf, build_type0_single_page_pdf, plan_text_run, ActualTextPolicy,
-    DocumentParagraphText, DocumentPlacedTextRun, EmbeddedType0Font, ParagraphTextPolicy,
-    PlacedTextRun, TextPlan, Type0DocumentOptions, Type0PdfOptions,
+use unicode_pdf::{
+    build_type0_document_pdf, build_type0_single_page_pdf, layout_document,
+    layout_document_with_break_opportunities, plan_text_run, synthesize_truetype_composites,
+    ActualTextPolicy, BidiResolver, CidAllocator, DefaultBidiResolver, DefaultShaper,
+    DocumentParagraphText, DocumentPlacedTextRun, EmbeddedType0Font, FontId, FontSet,
+    GeometryIndex, LayoutFont, LayoutOptions, ParagraphTextPolicy, PlacedTextRun, ShapeOptions,
+    TextDirection, TextPlan, TextShaper, Type0DocumentOptions, Type0PdfOptions,
 };
 
 fn main() -> ExitCode {
@@ -195,7 +188,7 @@ fn shape(font_path: &str, text_path: &str) -> Result<(), String> {
         fs::read(font_path).map_err(|error| format!("failed to read font {font_path}: {error}"))?;
     let text = fs::read_to_string(text_path)
         .map_err(|error| format!("failed to read {text_path}: {error}"))?;
-    let engine = HarfBuzzShaper::new().map_err(|error| error.to_string())?;
+    let engine = DefaultShaper::new().map_err(|error| error.to_string())?;
     let output = engine
         .shape(&font, &text, ShapeOptions::new(FontId(1)))
         .map_err(|error| error.to_string())?;
@@ -227,7 +220,7 @@ fn synthesize_font(font_path: &str, text_path: &str, output_path: &str) -> Resul
         fs::read(font_path).map_err(|error| format!("failed to read font {font_path}: {error}"))?;
     let text = fs::read_to_string(text_path)
         .map_err(|error| format!("failed to read {text_path}: {error}"))?;
-    let engine = HarfBuzzShaper::new().map_err(|error| error.to_string())?;
+    let engine = DefaultShaper::new().map_err(|error| error.to_string())?;
     let output = engine
         .shape(&font, &text, ShapeOptions::new(FontId(1)))
         .map_err(|error| error.to_string())?;
@@ -273,8 +266,8 @@ fn dump_layout_geometry(
         );
     }
     let font_set = FontSet::new(layout_fonts).map_err(|error| error.to_string())?;
-    let shaper = HarfBuzzShaper::new().map_err(|error| error.to_string())?;
-    let bidi = FriBidiResolver::new().map_err(|error| error.to_string())?;
+    let shaper = DefaultShaper::new().map_err(|error| error.to_string())?;
+    let bidi = DefaultBidiResolver::new().map_err(|error| error.to_string())?;
     let options = LayoutOptions::default();
     let layout = layout_document(&text, &font_set, &shaper, &bidi, options)
         .map_err(|error| error.to_string())?;
@@ -412,8 +405,8 @@ fn emit_layout_pdf_with_breaks(
         );
     }
     let font_set = FontSet::new(layout_fonts).map_err(|error| error.to_string())?;
-    let shaper = HarfBuzzShaper::new().map_err(|error| error.to_string())?;
-    let bidi = FriBidiResolver::new().map_err(|error| error.to_string())?;
+    let shaper = DefaultShaper::new().map_err(|error| error.to_string())?;
+    let bidi = DefaultBidiResolver::new().map_err(|error| error.to_string())?;
     let layout_options = LayoutOptions::default();
     let layout = layout_document_with_break_opportunities(
         &text,
@@ -541,13 +534,13 @@ fn paragraph_text_policy_from_env() -> Result<ParagraphTextPolicy, String> {
     }
 }
 
-fn logical_layout_text(runs: &[unicode_pdf_layout::LayoutRun]) -> String {
+fn logical_layout_text(runs: &[unicode_pdf::layout::LayoutRun]) -> String {
     runs.iter()
-        .map(unicode_pdf_layout::LayoutRun::text)
+        .map(unicode_pdf::layout::LayoutRun::text)
         .collect()
 }
 
-fn document_language_from_layout(runs: &[unicode_pdf_layout::LayoutRun]) -> &'static str {
+fn document_language_from_layout(runs: &[unicode_pdf::layout::LayoutRun]) -> &'static str {
     let mut found = None;
     for run in runs {
         if run.language == "und" {
@@ -595,8 +588,8 @@ fn emit_pdf(font_path: &str, text_path: &str, output_path: &str) -> Result<(), S
         fs::read(font_path).map_err(|error| format!("failed to read font {font_path}: {error}"))?;
     let text = fs::read_to_string(text_path)
         .map_err(|error| format!("failed to read {text_path}: {error}"))?;
-    let shaper = HarfBuzzShaper::new().map_err(|error| error.to_string())?;
-    let bidi = FriBidiResolver::new().map_err(|error| error.to_string())?;
+    let shaper = DefaultShaper::new().map_err(|error| error.to_string())?;
+    let bidi = DefaultBidiResolver::new().map_err(|error| error.to_string())?;
     let mut allocator = CidAllocator::new();
     let (plans, metadata, units_per_em) =
         plan_bidi_document(&font, &text, &shaper, &bidi, &mut allocator)?;
@@ -632,8 +625,8 @@ fn emit_pdf(font_path: &str, text_path: &str, output_path: &str) -> Result<(), S
 fn plan_bidi_document(
     font: &[u8],
     text: &str,
-    shaper: &HarfBuzzShaper,
-    bidi: &FriBidiResolver,
+    shaper: &DefaultShaper,
+    bidi: &DefaultBidiResolver,
     allocator: &mut CidAllocator,
 ) -> Result<(Vec<TextPlan>, Vec<PlannedRunMeta>, u32), String> {
     let mut plans = Vec::new();

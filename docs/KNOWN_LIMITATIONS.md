@@ -70,6 +70,8 @@ The logical text model supports emoji/ZWJ sequences, but the production visual s
 
 The initial logical-unit builder assumes non-empty text has shaping cluster output beginning at source byte 0. A production shaper adapter must explicitly handle source characters that produce no visible glyph while still preserving their semantics where required.
 
-## System HarfBuzz adapter
+## Shaping backend coverage
 
-The current production shaping adapter dynamically loads the system HarfBuzz shared library and supports Unix-like systems. A pure-Rust HarfRust backend and Windows loader are not implemented yet. The shaping API is backend-neutral so these can be added without changing the logical PDF model.
+The public crate now defaults to HarfRust 0.13 and `unicode-bidi`, so normal consumers can build without system text libraries. HarfRust intentionally does not implement every HarfBuzz integration or experimental feature and documents a small set of conformance differences, including the absence of HarfBuzz's Arabic fallback shaper for malformed/incomplete fonts.
+
+The runtime-loaded system HarfBuzz and FriBidi adapters are retained on Unix as reference backends. CI is expected to test both configurations. The shaping and BiDi traits remain backend-neutral so applications can also provide custom implementations through `Document::finish_with`.

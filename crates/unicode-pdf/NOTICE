@@ -1,0 +1,6 @@
+unicode-pdf
+Copyright 2026 unicode-pdf contributors
+
+This product includes experimental research fixtures and scripts created to
+investigate Unicode text preservation in PDF. Third-party fonts and PDF reader
+implementations are not included in this source distribution.

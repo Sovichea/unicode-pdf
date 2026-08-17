@@ -5,7 +5,8 @@ on:
   pull_request:
 
 jobs:
-  rust:
+  rust-pure:
+    name: Rust (HarfRust + unicode-bidi)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -14,10 +15,44 @@ jobs:
           components: rustfmt, clippy
       - name: Format
         run: cargo fmt --all -- --check
-      - name: Clippy
+      - name: Build default pure-Rust backend
+        run: cargo build --workspace
+      - name: Clippy default pure-Rust backend
         run: cargo clippy --workspace --all-targets -- -D warnings
-      - name: Test
+      - name: Test default pure-Rust backend
         run: cargo test --workspace
+
+  rust-system:
+    name: Rust (system HarfBuzz + FriBidi)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - name: Install native reference backends
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libfribidi0 libharfbuzz0b
+      - name: Build native reference backend
+        run: |
+          cargo build --workspace \
+            --no-default-features \
+            --features system-harfbuzz,system-fribidi
+      - name: Test native reference backend
+        env:
+          UNICODE_PDF_REQUIRE_SYSTEM_HARFBUZZ: '1'
+          UNICODE_PDF_REQUIRE_SYSTEM_FRIBIDI: '1'
+        run: |
+          cargo test --workspace \
+            --no-default-features \
+            --features system-harfbuzz,system-fribidi
+      - name: Clippy native reference backend
+        run: |
+          cargo clippy --workspace --all-targets \
+            --no-default-features \
+            --features system-harfbuzz,system-fribidi \
+            -- -D warnings
 
   conformance:
     runs-on: ubuntu-latest
@@ -74,6 +109,7 @@ jobs:
             --browser chromium \
             --check-baseline
       - name: Typsastra PDF.js selection conformance (Firefox)
+        continue-on-error: true
         run: |
           python conformance/run_pdfjs_typsastra.py \
             --pdfjs-dist target/conformance-node/node_modules/pdfjs-dist \

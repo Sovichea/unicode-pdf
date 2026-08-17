@@ -7,8 +7,8 @@
 use std::fmt;
 use std::fmt::Write as _;
 
-use unicode_pdf_core::{LogicalPdfUnit, TextDirection};
-use unicode_pdf_font::{Cid, CidAllocator, FontError, SynthesizedTrueTypeFont};
+use crate::core::{LogicalPdfUnit, TextDirection};
+use crate::font::{Cid, CidAllocator, FontError, SynthesizedTrueTypeFont};
 
 /// Mapping from one PDF CID to exact logical Unicode.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -1562,8 +1562,8 @@ fn body_string_adapter(buffer: &mut Vec<u8>) -> ByteFmt<'_> {
 
 #[cfg(test)]
 mod tests {
-    use unicode_pdf_core::{FontId, LogicalPdfUnit, PositionedGlyph};
-    use unicode_pdf_font::CidAllocator;
+    use crate::core::{FontId, LogicalPdfUnit, PositionedGlyph};
+    use crate::font::CidAllocator;
 
     use super::*;
 

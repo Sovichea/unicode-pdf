@@ -1,5 +1,5 @@
 {
-  "schema": 1,
+  "schema": 2,
   "comparison": "selection_equivalent",
   "expectations": {
     "poppler": {
@@ -45,6 +45,24 @@
       "multifont-multipage": "known-fail",
       "khmer-paragraph-natural": "pass",
       "khmer-paragraph-multipage": "pass"
+    }
+  },
+  "diagnostic_expectations": {
+    "pdfium": {
+      "khmer-paragraph-natural": {
+        "classification": "reader-generated-line-breaks-only",
+        "min_generated_line_break_char_count": 2,
+        "exact_after_removing_generated_linebreaks": true,
+        "generated_other_count": 0,
+        "character_stream_matches_get_text_range": true
+      },
+      "khmer-paragraph-multipage": {
+        "classification": "reader-generated-line-breaks-only",
+        "min_generated_line_break_char_count": 2,
+        "exact_after_removing_generated_linebreaks": true,
+        "generated_other_count": 0,
+        "character_stream_matches_get_text_range": true
+      }
     }
   }
 }

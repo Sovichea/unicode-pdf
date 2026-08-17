@@ -7,7 +7,7 @@
 use std::collections::HashMap;
 use std::fmt;
 
-use unicode_pdf_core::{FontId, LogicalPdfUnit};
+use crate::core::{FontId, LogicalPdfUnit};
 
 mod coverage;
 mod truetype;
@@ -206,7 +206,7 @@ impl std::error::Error for FontError {}
 
 #[cfg(test)]
 mod tests {
-    use unicode_pdf_core::{FontId, LogicalPdfUnit, PositionedGlyph};
+    use crate::core::{FontId, LogicalPdfUnit, PositionedGlyph};
 
     use super::*;
 

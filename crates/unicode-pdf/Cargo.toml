@@ -1,0 +1,25 @@
+[package]
+name = "unicode-pdf"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+description = "Unicode-correct PDF generation with complex-script shaping and exact logical text preservation"
+documentation = "https://docs.rs/unicode-pdf"
+keywords.workspace = true
+categories.workspace = true
+readme = "README.md"
+
+[features]
+default = ["harfrust", "unicode-bidi"]
+harfrust = ["dep:harfrust"]
+unicode-bidi = ["dep:unicode-bidi"]
+system-harfbuzz = []
+system-fribidi = []
+
+[dependencies]
+harfrust = { version = "0.13.0", optional = true }
+unicode-bidi = { version = "0.3.18", optional = true }
+
+[lints]
+workspace = true

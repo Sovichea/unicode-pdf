@@ -1,10 +1,11 @@
+//! Optional runtime-loaded system `FriBidi` backend.
 use std::ffi::{c_char, c_int, c_void, CStr, CString};
 use std::fmt;
 use std::ptr;
 use std::sync::Arc;
 
-use unicode_pdf_bidi::{BidiError, BidiParagraph, BidiResolver, BidiRun};
-use unicode_pdf_core::{SourceRange, TextDirection};
+use crate::bidi::{BidiError, BidiParagraph, BidiResolver, BidiRun};
+use crate::core::{SourceRange, TextDirection};
 
 const RTLD_NOW: c_int = 2;
 const RTLD_LOCAL: c_int = 0;

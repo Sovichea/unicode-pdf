@@ -2,15 +2,15 @@
 //!
 //! This layer keeps semantic source order separate from visual geometry. Font
 //! fallback is based on actual `cmap` coverage. Soft line wrapping never edits
-//! the logical Unicode stored in [`unicode_pdf_core::LogicalPdfUnit`].
+//! the logical Unicode stored in [`crate::core::LogicalPdfUnit`].
 
 use std::fmt;
 use std::ops::Range;
 
-use unicode_pdf_bidi::BidiResolver;
-use unicode_pdf_core::{FontId, LogicalPdfUnit, SourceRange, TextDirection};
-use unicode_pdf_font::FontCoverage;
-use unicode_pdf_shape::{ShapeOptions, TextShaper};
+use crate::bidi::BidiResolver;
+use crate::core::{FontId, LogicalPdfUnit, SourceRange, TextDirection};
+use crate::font::FontCoverage;
+use crate::shape::{ShapeOptions, TextShaper};
 
 /// One font available to the fallback resolver.
 #[derive(Clone, Debug)]
@@ -1187,7 +1187,7 @@ fn unit_visual_bounds_x(unit: &LogicalPdfUnit) -> (i32, i32) {
 #[cfg(test)]
 mod geometry_tests {
     use super::*;
-    use unicode_pdf_core::PositionedGlyph;
+    use crate::core::PositionedGlyph;
 
     fn unit(text: &str, start: usize, end: usize, x: i32, advance: i32) -> LogicalPdfUnit {
         LogicalPdfUnit {

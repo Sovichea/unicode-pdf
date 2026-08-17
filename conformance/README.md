@@ -125,3 +125,33 @@ python conformance/run_pdfjs_typsastra.py \
 ```
 
 Add `--screenshots` to retain before/after browser selection images. The harness also supports `--browser firefox` when a Playwright Firefox executable is available.
+
+## PDFium generated-character diagnosis
+
+PDFium can synthesize characters that were not encoded in the PDF text stream. In
+particular, its visual-line reconstruction may insert CR/LF pairs at soft wraps.
+The harness inspects PDFium's character stream with `FPDFText_IsGenerated()` and
+records this separately from the normal strict extraction result.
+
+For each PDFium case the report records:
+
+- how many characters PDFium marks as generated;
+- how many of those generated characters are CR/LF;
+- how many generated CRLF pairs occur;
+- whether PDFium generated any other characters; and
+- whether the source becomes exact after removing **only** generated CR/LF
+  characters.
+
+This diagnostic never changes `selection_exact`. A PDFium extraction containing a
+reader-generated newline remains a strict conformance failure. The additional
+classification identifies cases such as `reader-generated-line-breaks-only`, so a
+reader heuristic is not confused with compiler-inserted semantic whitespace.
+
+`baseline.json` contains diagnostic expectations for the natural Khmer paragraph
+fixtures. CI therefore verifies both that PDFium currently inserts the visual-line
+CR/LF pairs and that those pairs are explicitly reported by PDFium as generated.
+If a future PDFium release stops inserting them, the extraction result may become
+an improvement and the diagnostic baseline can then be updated deliberately.
+
+See [`../docs/PDFIUM_GENERATED_LINEBREAK_VALIDATION.md`](../docs/PDFIUM_GENERATED_LINEBREAK_VALIDATION.md)
+for the current Khmer paragraph measurements and CI expectations.

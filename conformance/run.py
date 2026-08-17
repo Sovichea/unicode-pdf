@@ -233,6 +233,187 @@ def compare_text(expected_raw: str, actual_raw: str) -> dict[str, Any]:
     }
 
 
+def analyze_generated_character_pages(
+    expected_raw: str,
+    pages: list[list[tuple[str, bool]]],
+) -> dict[str, Any]:
+    """Classify reader-generated characters without repairing reader output.
+
+    This is intentionally diagnostic only. The normal conformance comparison still
+    sees every generated character exactly as the reader exposes it. The filtered
+    comparison answers a narrower question: would the text be exact if *only*
+    characters explicitly marked by the reader as generated CR/LF were omitted?
+    """
+
+    page_texts: list[str] = []
+    filtered_page_texts: list[str] = []
+    generated_count = 0
+    generated_line_break_count = 0
+    generated_other_count = 0
+    generated_crlf_pairs = 0
+    examples: list[dict[str, Any]] = []
+
+    for page_index, page in enumerate(pages):
+        page_texts.append("".join(char for char, _ in page))
+        filtered_page_texts.append(
+            "".join(char for char, generated in page if not (generated and char in "\r\n"))
+        )
+
+        index = 0
+        while index < len(page):
+            char, generated = page[index]
+            if generated:
+                generated_count += 1
+                if char in "\r\n":
+                    generated_line_break_count += 1
+                else:
+                    generated_other_count += 1
+                if len(examples) < 24:
+                    examples.append(
+                        {
+                            "page": page_index,
+                            "char_index": index,
+                            "char": char,
+                            "codepoint": f"U+{ord(char):04X}" if char else None,
+                            "name": unicodedata.name(char, "<control-or-unnamed>") if char else "<none>",
+                        }
+                    )
+
+            if (
+                generated
+                and char == "\r"
+                and index + 1 < len(page)
+                and page[index + 1][1]
+                and page[index + 1][0] == "\n"
+            ):
+                generated_crlf_pairs += 1
+            index += 1
+
+    actual_raw = "\f".join(page_texts)
+    without_generated_line_breaks_raw = "\f".join(filtered_page_texts)
+    comparison = compare_text(expected_raw, actual_raw)
+    filtered_comparison = compare_text(expected_raw, without_generated_line_breaks_raw)
+
+    if comparison["selection_exact"]:
+        classification = "exact"
+    elif (
+        generated_line_break_count > 0
+        and generated_other_count == 0
+        and filtered_comparison["selection_exact"]
+    ):
+        classification = "reader-generated-line-breaks-only"
+    elif generated_count > 0:
+        classification = "reader-generated-characters-plus-other-differences"
+    else:
+        classification = "no-reader-generated-characters"
+
+    return {
+        "classification": classification,
+        "generated_char_count": generated_count,
+        "generated_line_break_char_count": generated_line_break_count,
+        "generated_crlf_pairs": generated_crlf_pairs,
+        "generated_other_count": generated_other_count,
+        "exact_after_removing_generated_linebreaks": filtered_comparison["selection_exact"],
+        "filtered_similarity": filtered_comparison["similarity"],
+        "generated_examples": examples,
+    }
+
+
+def inspect_pdfium_generated_characters(pdf: Path, expected_raw: str) -> dict[str, Any]:
+    """Inspect PDFium's character stream using FPDFText_IsGenerated()."""
+
+    pdfium = importlib.import_module("pypdfium2")
+    raw = pdfium.raw
+    document = pdfium.PdfDocument(str(pdf))
+    pages: list[list[tuple[str, bool]]] = []
+    stream_matches_text_range = True
+    invalid_generated_statuses: list[dict[str, int]] = []
+    try:
+        for page_index, page in enumerate(document):
+            text_page = page.get_textpage()
+            try:
+                count = int(raw.FPDFText_CountChars(text_page.raw))
+                chars: list[tuple[str, bool]] = []
+                for char_index in range(count):
+                    codepoint = int(raw.FPDFText_GetUnicode(text_page.raw, char_index))
+                    status = int(raw.FPDFText_IsGenerated(text_page.raw, char_index))
+                    if status < 0:
+                        invalid_generated_statuses.append(
+                            {"page": page_index, "char_index": char_index, "status": status}
+                        )
+                    char = chr(codepoint) if codepoint else ""
+                    chars.append((char, status > 0))
+                if "".join(char for char, _ in chars) != text_page.get_text_range():
+                    stream_matches_text_range = False
+                pages.append(chars)
+            finally:
+                text_page.close()
+            page.close()
+    finally:
+        document.close()
+
+    diagnostics = analyze_generated_character_pages(expected_raw, pages)
+    diagnostics.update(
+        {
+            "api": "FPDFText_IsGenerated",
+            "character_stream_matches_get_text_range": stream_matches_text_range,
+            "invalid_generated_statuses": invalid_generated_statuses,
+        }
+    )
+    return diagnostics
+
+
+def check_diagnostic_expectation(
+    reader: str,
+    case: str,
+    diagnostics: dict[str, Any] | None,
+    expectation: dict[str, Any] | None,
+) -> list[dict[str, Any]]:
+    if not expectation:
+        return []
+    if diagnostics is None:
+        return [
+            {
+                "reader": reader,
+                "case": case,
+                "field": "diagnostics",
+                "expected": expectation,
+                "actual": None,
+            }
+        ]
+
+    regressions: list[dict[str, Any]] = []
+    for field in (
+        "classification",
+        "exact_after_removing_generated_linebreaks",
+        "generated_other_count",
+        "character_stream_matches_get_text_range",
+    ):
+        if field in expectation and diagnostics.get(field) != expectation[field]:
+            regressions.append(
+                {
+                    "reader": reader,
+                    "case": case,
+                    "field": field,
+                    "expected": expectation[field],
+                    "actual": diagnostics.get(field),
+                }
+            )
+
+    minimum = expectation.get("min_generated_line_break_char_count")
+    if minimum is not None and diagnostics.get("generated_line_break_char_count", 0) < minimum:
+        regressions.append(
+            {
+                "reader": reader,
+                "case": case,
+                "field": "generated_line_break_char_count",
+                "expected": f">={minimum}",
+                "actual": diagnostics.get("generated_line_break_char_count", 0),
+            }
+        )
+    return regressions
+
+
 def extract_poppler(pdf: Path) -> tuple[str, str]:
     result = run_command(["pdftotext", "-enc", "UTF-8", str(pdf), "-"])
     return result.stdout.decode("utf-8", "strict"), command_version("pdftotext", ["-v"])
@@ -357,6 +538,36 @@ def markdown_report(report: dict[str, Any]) -> str:
         lines.append("No mismatches.")
         lines.append("")
 
+    pdfium_diagnostics = []
+    for reader in report["readers"]:
+        if reader["name"] != "pdfium":
+            continue
+        for case in reader.get("cases", []):
+            diagnostics = case.get("reader_diagnostics")
+            if diagnostics is not None:
+                pdfium_diagnostics.append((case["name"], diagnostics))
+
+    if pdfium_diagnostics:
+        lines.extend(
+            [
+                "## PDFium generated-character diagnostics",
+                "",
+                "PDFium exposes whether each extracted character was synthesized by the reader through `FPDFText_IsGenerated()`. These diagnostics do not repair or normalize the conformance result; they classify why a strict mismatch occurred.",
+                "",
+                "| Case | Classification | Generated CR/LF chars | Generated CRLF pairs | Other generated chars | Exact after removing only generated CR/LF |",
+                "|---|---|---:|---:|---:|---|",
+            ]
+        )
+        for name, diagnostics in pdfium_diagnostics:
+            exact = "YES" if diagnostics["exact_after_removing_generated_linebreaks"] else "NO"
+            lines.append(
+                f"| {name} | {diagnostics['classification']} | "
+                f"{diagnostics['generated_line_break_char_count']} | "
+                f"{diagnostics['generated_crlf_pairs']} | "
+                f"{diagnostics['generated_other_count']} | {exact} |"
+            )
+        lines.append("")
+
     lines.extend(
         [
             "## Interpretation",
@@ -385,7 +596,9 @@ def main() -> int:
         if missing:
             raise RuntimeError(f"unknown cases: {', '.join(sorted(missing))}")
 
-    baseline = load_json(args.baseline).get("expectations", {}) if args.baseline.exists() else {}
+    baseline_payload = load_json(args.baseline) if args.baseline.exists() else {}
+    baseline = baseline_payload.get("expectations", {})
+    diagnostic_baseline = baseline_payload.get("diagnostic_expectations", {})
     pdfjs_module = resolve_pdfjs_module(args.pdfjs_dist)
     availability = reader_availability(pdfjs_module)
     readers = choose_readers(args.readers, availability)
@@ -416,6 +629,7 @@ def main() -> int:
         "generated": generated,
         "readers": [],
         "regressions": [],
+        "diagnostic_regressions": [],
         "improvements": [],
     }
 
@@ -442,13 +656,25 @@ def main() -> int:
             extracted_path.parent.mkdir(parents=True, exist_ok=True)
             extracted_path.write_text(actual, encoding="utf-8")
             comparison = compare_text(expected, actual)
+            diagnostics: dict[str, Any] | None = None
+            if reader == "pdfium":
+                diagnostics = inspect_pdfium_generated_characters(args.out / f"{name}.pdf", expected)
+
             expectation = baseline.get(reader, {}).get(name, "untracked")
+            diagnostic_expectation = diagnostic_baseline.get(reader, {}).get(name)
             case_report = {
                 "name": name,
                 "baseline": expectation,
                 "extracted": str(extracted_path),
                 "comparison": comparison,
             }
+            if diagnostics is not None:
+                case_report["reader_diagnostics"] = diagnostics
+            report["diagnostic_regressions"].extend(
+                check_diagnostic_expectation(
+                    reader, name, diagnostics, diagnostic_expectation
+                )
+            )
             reader_report["cases"].append(case_report)
 
             passed = comparison["selection_exact"]
@@ -482,8 +708,16 @@ def main() -> int:
         print("improvements:", ", ".join(f"{x['reader']}/{x['case']}" for x in report["improvements"]))
     if report["regressions"]:
         print("regressions:", ", ".join(f"{x['reader']}/{x['case']}" for x in report["regressions"]))
-        if args.check_baseline:
-            return 1
+    if report["diagnostic_regressions"]:
+        print(
+            "diagnostic regressions:",
+            ", ".join(
+                f"{x['reader']}/{x['case']}:{x['field']}"
+                for x in report["diagnostic_regressions"]
+            ),
+        )
+    if args.check_baseline and (report["regressions"] or report["diagnostic_regressions"]):
+        return 1
     return 0
 
 

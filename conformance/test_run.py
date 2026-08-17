@@ -1,6 +1,6 @@
 import unittest
 
-from run import compare_text, normalize_selection_text
+from run import analyze_generated_character_pages, compare_text, normalize_selection_text
 
 
 class SelectionNormalizationTests(unittest.TestCase):
@@ -32,6 +32,40 @@ class ComparisonTests(unittest.TestCase):
     def test_does_not_repair_bidi_reordering(self):
         result = compare_text("abc العربية 123", "abc 123 العربية")
         self.assertFalse(result["selection_exact"])
+
+
+class PdfiumGeneratedCharacterTests(unittest.TestCase):
+    def test_classifies_generated_crlf_as_reader_linebreaks_only(self):
+        pages = [[
+            ("a", False),
+            ("b", False),
+            ("\r", True),
+            ("\n", True),
+            ("c", False),
+            ("d", False),
+        ]]
+        result = analyze_generated_character_pages("abcd", pages)
+        self.assertEqual(result["classification"], "reader-generated-line-breaks-only")
+        self.assertEqual(result["generated_line_break_char_count"], 2)
+        self.assertEqual(result["generated_crlf_pairs"], 1)
+        self.assertEqual(result["generated_other_count"], 0)
+        self.assertTrue(result["exact_after_removing_generated_linebreaks"])
+
+    def test_generated_non_linebreak_is_not_classified_as_linebreak_only(self):
+        pages = [[("a", False), (" ", True), ("b", False)]]
+        result = analyze_generated_character_pages("ab", pages)
+        self.assertEqual(
+            result["classification"],
+            "reader-generated-characters-plus-other-differences",
+        )
+        self.assertEqual(result["generated_other_count"], 1)
+        self.assertFalse(result["exact_after_removing_generated_linebreaks"])
+
+    def test_real_newline_is_never_removed_by_generated_character_diagnostic(self):
+        pages = [[("a", False), ("\n", False), ("b", False)]]
+        result = analyze_generated_character_pages("ab", pages)
+        self.assertEqual(result["classification"], "no-reader-generated-characters")
+        self.assertFalse(result["exact_after_removing_generated_linebreaks"])
 
 
 if __name__ == "__main__":

@@ -2,18 +2,20 @@
 name = "unicode-pdf-cli"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
 description = "Development CLI for unicode-pdf"
+publish = false
+
+[features]
+default = ["harfrust", "unicode-bidi"]
+harfrust = ["unicode-pdf/harfrust"]
+unicode-bidi = ["unicode-pdf/unicode-bidi"]
+system-harfbuzz = ["unicode-pdf/system-harfbuzz"]
+system-fribidi = ["unicode-pdf/system-fribidi"]
 
 [dependencies]
-unicode-pdf-bidi = { path = "../unicode-pdf-bidi" }
-unicode-pdf-bidi-fribidi = { path = "../unicode-pdf-bidi-fribidi" }
-unicode-pdf-core = { path = "../unicode-pdf-core" }
-unicode-pdf-font = { path = "../unicode-pdf-font" }
-unicode-pdf-layout = { path = "../unicode-pdf-layout" }
-unicode-pdf-shape = { path = "../unicode-pdf-shape" }
-unicode-pdf-shape-harfbuzz = { path = "../unicode-pdf-shape-harfbuzz" }
-unicode-pdf-write = { path = "../unicode-pdf-write" }
+unicode-pdf = { path = "../unicode-pdf", version = "0.1.0-alpha.3", default-features = false }
 
 [lints]
 workspace = true

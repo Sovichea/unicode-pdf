@@ -12,10 +12,18 @@ A proposed change should preserve that distinction.
 
 1. Fork the repository and create a focused branch.
 2. Install a stable Rust toolchain.
-3. Run the workspace tests before making changes:
+3. Run the default pure-Rust workspace tests before making changes:
 
    ```bash
    cargo test --workspace
+   ```
+
+   On Unix, changes touching shaping or BiDi should also be compared against the optional native reference backends:
+
+   ```bash
+   cargo test --workspace \
+     --no-default-features \
+     --features system-harfbuzz,system-fribidi
    ```
 
 4. Make the smallest change that solves the problem.

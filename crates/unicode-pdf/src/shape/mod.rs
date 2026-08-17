@@ -7,7 +7,7 @@
 
 use std::fmt;
 
-use unicode_pdf_core::{FontId, LogicalTextRun, TextDirection};
+use crate::core::{FontId, LogicalTextRun, TextDirection};
 
 /// Input options for one shaping operation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -104,3 +104,9 @@ impl fmt::Display for ShapeError {
 }
 
 impl std::error::Error for ShapeError {}
+
+#[cfg(feature = "harfrust")]
+pub mod harfrust;
+#[cfg(all(feature = "system-harfbuzz", unix))]
+#[allow(unsafe_code)]
+pub mod system_harfbuzz;

@@ -1,13 +1,12 @@
+//! Optional runtime-loaded system `HarfBuzz` shaping backend.
 use std::ffi::{c_char, c_int, c_uint, c_void, CStr, CString};
 use std::fmt;
 use std::ptr;
 use std::slice;
 use std::sync::Arc;
 
-use unicode_pdf_core::{
-    logical_units_from_shaped_glyphs, LogicalTextRun, ShapedGlyph, TextDirection,
-};
-use unicode_pdf_shape::{ShapeError, ShapeOptions, ShapeOutput, TextShaper};
+use crate::core::{logical_units_from_shaped_glyphs, LogicalTextRun, ShapedGlyph, TextDirection};
+use crate::shape::{ShapeError, ShapeOptions, ShapeOutput, TextShaper};
 
 const RTLD_NOW: c_int = 2;
 const RTLD_LOCAL: c_int = 0;
