@@ -223,7 +223,38 @@ pub fn layout_document<S: TextShaper, B: BidiResolver>(
     bidi: &B,
     options: LayoutOptions,
 ) -> Result<LayoutDocument, LayoutError> {
+    layout_document_with_break_opportunities(text, &[], fonts, shaper, bidi, options)
+}
+
+/// Shapes, wraps, and paginates a UTF-8 document using caller-supplied soft
+/// line-break opportunities.
+///
+/// `break_opportunities` contains UTF-8 byte offsets in the original source
+/// after which a visual line may break. The offsets are layout metadata only:
+/// no Unicode scalar, whitespace, or newline is inserted into the logical text.
+/// Default whitespace opportunities are retained and merged with these offsets.
+/// This is intended for language-aware boundary providers such as ICU4X or a
+/// Khmer word segmenter.
+///
+/// # Errors
+///
+/// Returns [`LayoutError::InvalidBreakOpportunity`] if an offset lies outside
+/// the source or is not on a UTF-8 boundary, in addition to the normal layout
+/// errors documented by [`layout_document`].
+pub fn layout_document_with_break_opportunities<S: TextShaper, B: BidiResolver>(
+    text: &str,
+    break_opportunities: &[usize],
+    fonts: &FontSet,
+    shaper: &S,
+    bidi: &B,
+    options: LayoutOptions,
+) -> Result<LayoutDocument, LayoutError> {
     options.validate()?;
+    for &offset in break_opportunities {
+        if offset > text.len() || !text.is_char_boundary(offset) {
+            return Err(LayoutError::InvalidBreakOpportunity(offset));
+        }
+    }
     let mut runs = Vec::new();
     let mut page_index = 0_u32;
     let mut baseline_y = options.page_height - options.margin_top - options.font_size;
@@ -236,7 +267,14 @@ pub fn layout_document<S: TextShaper, B: BidiResolver>(
         let paragraph = paragraph_with_newline
             .strip_suffix('\n')
             .unwrap_or(paragraph_with_newline);
-        let line_ranges = wrap_paragraph(paragraph, fonts, shaper, bidi, options)?;
+        let paragraph_end = paragraph_start + paragraph.len();
+        let local_breaks: Vec<usize> = break_opportunities
+            .iter()
+            .copied()
+            .filter(|offset| *offset > paragraph_start && *offset <= paragraph_end)
+            .map(|offset| offset - paragraph_start)
+            .collect();
+        let line_ranges = wrap_paragraph(paragraph, &local_breaks, fonts, shaper, bidi, options)?;
 
         if line_ranges.is_empty() {
             advance_line(&mut page_index, &mut baseline_y, options);
@@ -295,6 +333,7 @@ fn advance_line(page_index: &mut u32, baseline_y: &mut f64, options: LayoutOptio
 
 fn wrap_paragraph<S: TextShaper, B: BidiResolver>(
     paragraph: &str,
+    break_opportunities: &[usize],
     fonts: &FontSet,
     shaper: &S,
     bidi: &B,
@@ -303,7 +342,7 @@ fn wrap_paragraph<S: TextShaper, B: BidiResolver>(
     if paragraph.is_empty() {
         return Ok(Vec::new());
     }
-    let segments = break_segments(paragraph);
+    let segments = break_segments_with_opportunities(paragraph, break_opportunities)?;
     let mut lines = Vec::new();
     let mut line_start = 0_usize;
     let mut line_end = 0_usize;
@@ -383,6 +422,41 @@ fn break_segments(text: &str) -> Vec<Range<usize>> {
         }
     }
     paired
+}
+
+fn break_segments_with_opportunities(
+    text: &str,
+    break_opportunities: &[usize],
+) -> Result<Vec<Range<usize>>, LayoutError> {
+    if text.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let mut boundaries: Vec<usize> = break_segments(text)
+        .into_iter()
+        .map(|range| range.end)
+        .collect();
+    for &offset in break_opportunities {
+        if offset > text.len() || !text.is_char_boundary(offset) {
+            return Err(LayoutError::InvalidBreakOpportunity(offset));
+        }
+        if offset > 0 {
+            boundaries.push(offset);
+        }
+    }
+    boundaries.push(text.len());
+    boundaries.sort_unstable();
+    boundaries.dedup();
+
+    let mut start = 0_usize;
+    let mut ranges = Vec::with_capacity(boundaries.len());
+    for end in boundaries {
+        if end > start {
+            ranges.push(start..end);
+            start = end;
+        }
+    }
+    Ok(ranges)
 }
 
 fn split_oversize_segment<S: TextShaper, B: BidiResolver>(
@@ -696,6 +770,8 @@ pub enum LayoutError {
     },
     /// An internal source range was not on a UTF-8 boundary.
     InvalidUtf8Boundary,
+    /// A caller-supplied soft line-break byte offset was invalid.
+    InvalidBreakOpportunity(usize),
     /// Page/layout metrics are invalid.
     InvalidOptions,
 }
@@ -712,6 +788,10 @@ impl fmt::Display for LayoutError {
                 write!(f, "no fallback font covers {ch:?} (U+{codepoint:04X})")
             }
             Self::InvalidUtf8Boundary => write!(f, "layout source range is not a UTF-8 boundary"),
+            Self::InvalidBreakOpportunity(offset) => write!(
+                f,
+                "line-break opportunity at byte offset {offset} is not a valid UTF-8 boundary",
+            ),
             Self::InvalidOptions => write!(f, "invalid page or paragraph layout options"),
         }
     }
@@ -730,6 +810,22 @@ mod tests {
         let reconstructed: String = ranges.iter().map(|range| &text[range.clone()]).collect();
         assert_eq!(reconstructed, text);
         assert_eq!(ranges.len(), 3);
+    }
+
+    #[test]
+    fn explicit_break_opportunities_do_not_modify_text() {
+        let text = "helloworld";
+        let ranges = break_segments_with_opportunities(text, &[5]).unwrap();
+        assert_eq!(ranges, vec![0..5, 5..10]);
+        let reconstructed: String = ranges.iter().map(|range| &text[range.clone()]).collect();
+        assert_eq!(reconstructed, text);
+    }
+
+    #[test]
+    fn explicit_break_opportunities_must_be_utf8_boundaries() {
+        let text = "ខ្មែរ";
+        let error = break_segments_with_opportunities(text, &[1]).unwrap_err();
+        assert_eq!(error, LayoutError::InvalidBreakOpportunity(1));
     }
 
     #[test]

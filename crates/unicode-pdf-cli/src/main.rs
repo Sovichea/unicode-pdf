@@ -9,7 +9,10 @@ use unicode_pdf_bidi::BidiResolver;
 use unicode_pdf_bidi_fribidi::FriBidiResolver;
 use unicode_pdf_core::{FontId, TextDirection};
 use unicode_pdf_font::{synthesize_truetype_composites, CidAllocator};
-use unicode_pdf_layout::{layout_document, FontSet, GeometryIndex, LayoutFont, LayoutOptions};
+use unicode_pdf_layout::{
+    layout_document, layout_document_with_break_opportunities, FontSet, GeometryIndex, LayoutFont,
+    LayoutOptions,
+};
 use unicode_pdf_shape::{ShapeOptions, TextShaper};
 use unicode_pdf_shape_harfbuzz::HarfBuzzShaper;
 use unicode_pdf_write::{
@@ -127,6 +130,29 @@ fn run() -> Result<(), String> {
                 );
             }
             emit_layout_pdf(&fonts, &text, &output)
+        }
+        "emit-layout-pdf-breaks" => {
+            let text = required_arg(
+                &mut args,
+                "usage: unicode-pdf-cli emit-layout-pdf-breaks <utf8-file> <breaks.txt> <out.pdf> <font.ttf> [font.ttf ...]",
+            )?;
+            let breaks = required_arg(
+                &mut args,
+                "usage: unicode-pdf-cli emit-layout-pdf-breaks <utf8-file> <breaks.txt> <out.pdf> <font.ttf> [font.ttf ...]",
+            )?;
+            let output = required_arg(
+                &mut args,
+                "usage: unicode-pdf-cli emit-layout-pdf-breaks <utf8-file> <breaks.txt> <out.pdf> <font.ttf> [font.ttf ...]",
+            )?;
+            let fonts: Vec<String> = args.collect();
+            if fonts.is_empty() {
+                return Err(
+                    "usage: unicode-pdf-cli emit-layout-pdf-breaks <utf8-file> <breaks.txt> <out.pdf> <font.ttf> [font.ttf ...]"
+                        .to_owned(),
+                );
+            }
+            let break_offsets = read_break_offsets(&breaks)?;
+            emit_layout_pdf_with_breaks(&fonts, &text, &output, &break_offsets)
         }
         "help" | "--help" | "-h" => {
             print_help();
@@ -316,6 +342,29 @@ fn dump_layout_geometry(
     Ok(())
 }
 
+fn read_break_offsets(path: &str) -> Result<Vec<usize>, String> {
+    let contents =
+        fs::read_to_string(path).map_err(|error| format!("failed to read {path}: {error}"))?;
+    let mut offsets = Vec::new();
+    for (line_index, line) in contents.lines().enumerate() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+        let offset = trimmed.parse::<usize>().map_err(|error| {
+            format!(
+                "invalid byte offset on {}:{} ({trimmed:?}): {error}",
+                path,
+                line_index + 1
+            )
+        })?;
+        offsets.push(offset);
+    }
+    offsets.sort_unstable();
+    offsets.dedup();
+    Ok(offsets)
+}
+
 fn json_escape(text: &str) -> String {
     let mut output = String::new();
     for ch in text.chars() {
@@ -340,6 +389,16 @@ fn emit_layout_pdf(
     text_path: &str,
     output_path: &str,
 ) -> Result<(), String> {
+    emit_layout_pdf_with_breaks(font_paths, text_path, output_path, &[])
+}
+
+#[allow(clippy::too_many_lines)]
+fn emit_layout_pdf_with_breaks(
+    font_paths: &[String],
+    text_path: &str,
+    output_path: &str,
+    break_opportunities: &[usize],
+) -> Result<(), String> {
     let text = fs::read_to_string(text_path)
         .map_err(|error| format!("failed to read {text_path}: {error}"))?;
     let mut layout_fonts = Vec::with_capacity(font_paths.len());
@@ -356,8 +415,15 @@ fn emit_layout_pdf(
     let shaper = HarfBuzzShaper::new().map_err(|error| error.to_string())?;
     let bidi = FriBidiResolver::new().map_err(|error| error.to_string())?;
     let layout_options = LayoutOptions::default();
-    let layout = layout_document(&text, &font_set, &shaper, &bidi, layout_options)
-        .map_err(|error| error.to_string())?;
+    let layout = layout_document_with_break_opportunities(
+        &text,
+        break_opportunities,
+        &font_set,
+        &shaper,
+        &bidi,
+        layout_options,
+    )
+    .map_err(|error| error.to_string())?;
 
     let mut allocators: Vec<CidAllocator> = font_set
         .fonts()
