@@ -1,0 +1,32 @@
+--- /mnt/data/khmer_pdfjs_test/pdfjs/build/pdf.worker.mjs	2026-08-16 15:15:18.187727923 +0000
++++ /mnt/data/crossscript_cluster_validation/pdfjs-logical-whitespace-patched/build/pdf.worker.mjs	2026-08-16 15:53:26.901187917 +0000
+@@ -17384,7 +17384,7 @@
+   }
+   return -1;
+ }
+-const SpecialCharRegExp = /^(\s)|(\p{Mn})|(\p{Cf})$/u;
++const SpecialCharRegExp = /^(\s)$|^(\p{Mn})$|^(\p{Cf})$/u;
+ const CategoryCache = new Map();
+ function getCharUnicodeCategory(char) {
+   const cachedCategory = CategoryCache.get(char);
+@@ -35677,7 +35677,7 @@
+     lang = null,
+     markedContentData = null,
+     disableNormalization = false,
+-    keepWhiteSpace = false,
++    keepWhiteSpace = true,
+     prevRefs = null,
+     intersector = null
+   }) {
+@@ -35860,7 +35860,10 @@
+       }
+       const bidiResult = bidi(text, -1, textChunk.vertical);
+       return {
+-        str: bidiResult.str,
++        // Typsastra logical-text mode: the compiler emits semantic CIDs in
++        // original logical source order. Use BiDi only to determine direction;
++        // do not reorder the Unicode string a second time.
++        str: text,
+         dir: bidiResult.dir,
+         width: Math.abs(textChunk.totalWidth),
+         height: Math.abs(textChunk.totalHeight),

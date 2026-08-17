@@ -1,0 +1,5 @@
+Unicode PDF production layout test. This paragraph mixes English with Khmer កម្ពុជា ខ្ញុំសរសេរភាសាខ្មែរ, Arabic العربية 2026 مُحَمَّد, and Devanagari हिन्दी क्षेत्र परीक्षा. It is deliberately long enough to wrap across several visual lines while preserving the original logical Unicode without inserting soft-wrap characters into the PDF text model.
+
+ខ្មែរនិង English អាចសរសេរជាមួយគ្នា។ កម្ពុជា មានអក្សរខ្មែរដែលត្រូវការការរៀបចំ glyphs ស្មុគស្មាញ ហើយឯកសារនេះធ្វើតេស្ត font fallback និង line wrapping ជាច្រើនបន្ទាត់។ Arabic العربية appears again, followed by हिन्दी and ordinary Latin text.
+
+Version 2: العربية 2026 | path /docs ثم English again. क्षेत्र में हिन्दी की परीक्षा. កម្ពុជា ខ្ញុំសរសេរភាសាខ្មែរ. This final paragraph repeats mixed directional and complex-script content to exercise pagination and tagged paragraph structure.

@@ -1,0 +1,97 @@
+{
+  "cases": [
+    {
+      "name": "khmer",
+      "fixture": "fixtures/khmer.txt",
+      "font_env": "UNICODE_PDF_FONT_KHMER",
+      "font_family": "Noto Sans Khmer"
+    },
+    {
+      "name": "devanagari",
+      "fixture": "fixtures/devanagari.txt",
+      "font_env": "UNICODE_PDF_FONT_DEVANAGARI",
+      "font_family": "Noto Sans Devanagari"
+    },
+    {
+      "name": "arabic",
+      "fixture": "fixtures/arabic.txt",
+      "font_env": "UNICODE_PDF_FONT_ARABIC",
+      "font_family": "Noto Sans Arabic"
+    },
+    {
+      "name": "mixed-bidi",
+      "fixture": "fixtures/mixed-bidi.txt",
+      "font_env": "UNICODE_PDF_FONT_MIXED_BIDI",
+      "font_family": "DejaVu Sans"
+    },
+    {
+      "name": "multifont-inline",
+      "fixture": "fixtures/multifont-inline.txt",
+      "generator": "layout",
+      "fonts": [
+        {
+          "font_env": "UNICODE_PDF_FONT_LATIN",
+          "font_family": "Noto Sans"
+        },
+        {
+          "font_env": "UNICODE_PDF_FONT_KHMER",
+          "font_family": "Noto Sans Khmer"
+        },
+        {
+          "font_env": "UNICODE_PDF_FONT_ARABIC",
+          "font_family": "Noto Sans Arabic"
+        },
+        {
+          "font_env": "UNICODE_PDF_FONT_DEVANAGARI",
+          "font_family": "Noto Sans Devanagari"
+        }
+      ]
+    },
+    {
+      "name": "multifont-layout",
+      "fixture": "fixtures/multifont-layout.txt",
+      "generator": "layout",
+      "fonts": [
+        {
+          "font_env": "UNICODE_PDF_FONT_LATIN",
+          "font_family": "Noto Sans"
+        },
+        {
+          "font_env": "UNICODE_PDF_FONT_KHMER",
+          "font_family": "Noto Sans Khmer"
+        },
+        {
+          "font_env": "UNICODE_PDF_FONT_ARABIC",
+          "font_family": "Noto Sans Arabic"
+        },
+        {
+          "font_env": "UNICODE_PDF_FONT_DEVANAGARI",
+          "font_family": "Noto Sans Devanagari"
+        }
+      ]
+    },
+    {
+      "name": "multifont-multipage",
+      "fixture": "fixtures/multifont-multipage.txt",
+      "generator": "layout",
+      "fonts": [
+        {
+          "font_env": "UNICODE_PDF_FONT_LATIN",
+          "font_family": "Noto Sans"
+        },
+        {
+          "font_env": "UNICODE_PDF_FONT_KHMER",
+          "font_family": "Noto Sans Khmer"
+        },
+        {
+          "font_env": "UNICODE_PDF_FONT_ARABIC",
+          "font_family": "Noto Sans Arabic"
+        },
+        {
+          "font_env": "UNICODE_PDF_FONT_DEVANAGARI",
+          "font_family": "Noto Sans Devanagari"
+        }
+      ]
+    }
+  ]
+}

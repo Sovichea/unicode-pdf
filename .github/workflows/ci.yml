@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: Format
+        run: cargo fmt --all -- --check
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Test
+        run: cargo test --workspace
+
+  conformance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install system PDF and text dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            fontconfig \
+            fonts-dejavu-core \
+            fonts-noto-core \
+            ghostscript \
+            libfribidi0 \
+            libharfbuzz0b \
+            poppler-utils
+      - name: Install pinned reader bindings
+        run: |
+          python -m pip install PyMuPDF==1.26.7 pypdfium2==5.8.0
+          npm install --prefix target/conformance-node --no-save pdfjs-dist@6.2.108
+      - name: Test conformance harness
+        run: python -m unittest discover -s conformance -p 'test_*.py'
+      - name: Cross-reader Unicode conformance
+        run: |
+          scripts/run-conformance.sh \
+            --require poppler,mupdf,pdfium,pdfjs \
+            --pdfjs-dist target/conformance-node/node_modules/pdfjs-dist \
+            --check-baseline
+      - name: Selection geometry conformance
+        run: |
+          python conformance/run_geometry.py \
+            --pdfjs-dist target/conformance-node/node_modules/pdfjs-dist \
+            --out target/geometry-conformance \
+            --check-baseline
+      - name: Upload conformance report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unicode-pdf-conformance
+          path: |
+            target/conformance/RESULTS.md
+            target/conformance/results.json
+            target/conformance/*.pdf
+            target/conformance/extracted/**
+            target/geometry-conformance/RESULTS.md
+            target/geometry-conformance/results.json
+            target/geometry-conformance/*.geometry.json
+            target/geometry-conformance/*.pdfjs.json

@@ -1,0 +1,9 @@
+[package]
+name = "unicode-pdf-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Logical Unicode and shaped-glyph model for unicode-pdf"
+
+[lints]
+workspace = true

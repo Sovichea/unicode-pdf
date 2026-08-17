@@ -1,0 +1,5 @@
+[
+  {"name":"multifont-inline","fixture":"fixtures/multifont-inline.txt"},
+  {"name":"multifont-layout","fixture":"fixtures/multifont-layout.txt"},
+  {"name":"multifont-multipage","fixture":"fixtures/multifont-multipage.txt"}
+]

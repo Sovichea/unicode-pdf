@@ -1,0 +1,28 @@
+[workspace]
+members = [
+    "crates/unicode-pdf-bidi",
+    "crates/unicode-pdf-bidi-fribidi",
+    "crates/unicode-pdf-core",
+    "crates/unicode-pdf-font",
+    "crates/unicode-pdf-layout",
+    "crates/unicode-pdf-shape",
+    "crates/unicode-pdf-shape-harfbuzz",
+    "crates/unicode-pdf-write",
+    "crates/unicode-pdf-cli",
+]
+resolver = "2"
+
+[workspace.package]
+version = "0.1.0-alpha.1"
+edition = "2021"
+license = "Apache-2.0"
+keywords = ["pdf", "unicode", "harfbuzz", "text", "typography"]
+categories = ["text-processing", "encoding"]
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+missing_docs = "warn"
+
+[workspace.lints.clippy]
+all = "warn"
+pedantic = "warn"

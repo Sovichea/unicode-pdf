@@ -1,0 +1,13 @@
+[package]
+name = "unicode-pdf-write"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Type0/CIDFontType2 PDF emission and Unicode mapping for unicode-pdf"
+
+[dependencies]
+unicode-pdf-core = { path = "../unicode-pdf-core" }
+unicode-pdf-font = { path = "../unicode-pdf-font" }
+
+[lints]
+workspace = true

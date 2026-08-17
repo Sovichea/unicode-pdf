@@ -1,0 +1,19 @@
+[package]
+name = "unicode-pdf-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Development CLI for unicode-pdf"
+
+[dependencies]
+unicode-pdf-bidi = { path = "../unicode-pdf-bidi" }
+unicode-pdf-bidi-fribidi = { path = "../unicode-pdf-bidi-fribidi" }
+unicode-pdf-core = { path = "../unicode-pdf-core" }
+unicode-pdf-font = { path = "../unicode-pdf-font" }
+unicode-pdf-layout = { path = "../unicode-pdf-layout" }
+unicode-pdf-shape = { path = "../unicode-pdf-shape" }
+unicode-pdf-shape-harfbuzz = { path = "../unicode-pdf-shape-harfbuzz" }
+unicode-pdf-write = { path = "../unicode-pdf-write" }
+
+[lints]
+workspace = true

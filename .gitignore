@@ -1,0 +1,28 @@
+# Rust
+/target/
+**/*.rs.bk
+# Python experiments
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Generated experiment artifacts
+experiments/out/
+*.pdf
+*.ttf
+*.otf
+*.png
+
+# Editors / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Local tooling
+.env
+.env.*
+!.env.example

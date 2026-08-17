@@ -1,0 +1,13 @@
+[package]
+name = "unicode-pdf-shape-harfbuzz"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "System HarfBuzz shaping adapter for unicode-pdf"
+
+[dependencies]
+unicode-pdf-core = { path = "../unicode-pdf-core" }
+unicode-pdf-shape = { path = "../unicode-pdf-shape" }
+
+[lints]
+workspace = true

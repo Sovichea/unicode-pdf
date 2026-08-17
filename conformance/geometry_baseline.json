@@ -1,0 +1,5 @@
+{
+  "multifont-inline": {"poppler": 0.99, "mupdf": 0.99, "pdfium": 0.95, "pdfjs": 0.85},
+  "multifont-layout": {"poppler": 0.99, "mupdf": 0.99, "pdfium": 0.97, "pdfjs": 0.97},
+  "multifont-multipage": {"poppler": 0.99, "mupdf": 0.99, "pdfium": 0.97, "pdfjs": 0.97}
+}

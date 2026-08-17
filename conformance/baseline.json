@@ -1,0 +1,42 @@
+{
+  "schema": 1,
+  "comparison": "selection_equivalent",
+  "expectations": {
+    "poppler": {
+      "khmer": "pass",
+      "devanagari": "pass",
+      "arabic": "known-fail",
+      "mixed-bidi": "known-fail",
+      "multifont-inline": "pass",
+      "multifont-layout": "known-fail",
+      "multifont-multipage": "known-fail"
+    },
+    "mupdf": {
+      "khmer": "pass",
+      "devanagari": "pass",
+      "arabic": "pass",
+      "mixed-bidi": "known-fail",
+      "multifont-inline": "pass",
+      "multifont-layout": "known-fail",
+      "multifont-multipage": "known-fail"
+    },
+    "pdfium": {
+      "khmer": "pass",
+      "devanagari": "pass",
+      "arabic": "known-fail",
+      "mixed-bidi": "known-fail",
+      "multifont-inline": "pass",
+      "multifont-layout": "known-fail",
+      "multifont-multipage": "known-fail"
+    },
+    "pdfjs": {
+      "khmer": "known-fail",
+      "devanagari": "known-fail",
+      "arabic": "known-fail",
+      "mixed-bidi": "known-fail",
+      "multifont-inline": "known-fail",
+      "multifont-layout": "known-fail",
+      "multifont-multipage": "known-fail"
+    }
+  }
+}
