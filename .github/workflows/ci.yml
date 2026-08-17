@@ -56,6 +56,8 @@ jobs:
 
   conformance:
     runs-on: ubuntu-latest
+    env:
+      UNICODE_PDF_CONFORMANCE_BACKEND: system
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@1.97.1

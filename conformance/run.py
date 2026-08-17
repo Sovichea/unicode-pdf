@@ -16,6 +16,8 @@ import sys
 import unicodedata
 from typing import Any, Callable
 
+from cargo_backend import cargo_cli_prefix
+
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CASES = ROOT / "conformance" / "cases.json"
 DEFAULT_BASELINE = ROOT / "conformance" / "baseline.json"
@@ -77,7 +79,24 @@ def parse_args() -> argparse.Namespace:
 
 
 def run_command(args: list[str], *, cwd: Path = ROOT, check: bool = True) -> subprocess.CompletedProcess[bytes]:
-    return subprocess.run(args, cwd=cwd, check=check, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    result = subprocess.run(
+        args,
+        cwd=cwd,
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    if check and result.returncode != 0:
+        stdout = result.stdout.decode("utf-8", "replace").strip()
+        stderr = result.stderr.decode("utf-8", "replace").strip()
+        command = " ".join(map(str, args))
+        details = [f"command failed with exit code {result.returncode}: {command}"]
+        if stdout:
+            details.append(f"stdout:\n{stdout}")
+        if stderr:
+            details.append(f"stderr:\n{stderr}")
+        raise RuntimeError("\n".join(details))
+    return result
 
 
 def command_version(command: str, args: list[str]) -> str:
@@ -135,12 +154,12 @@ def generate_pdf(case: dict[str, Any], output: Path) -> dict[str, Any]:
         if case.get("breaks"):
             breaks = (ROOT / case["breaks"]).resolve()
             command = [
-                "cargo", "run", "-q", "-p", "unicode-pdf-cli", "--",
+                *cargo_cli_prefix(),
                 "emit-layout-pdf-breaks", str(fixture), str(breaks), str(output), *map(str, fonts),
             ]
         else:
             command = [
-                "cargo", "run", "-q", "-p", "unicode-pdf-cli", "--",
+                *cargo_cli_prefix(),
                 "emit-layout-pdf", str(fixture), str(output), *map(str, fonts),
             ]
         result = run_command(command)
@@ -151,12 +170,7 @@ def generate_pdf(case: dict[str, Any], output: Path) -> dict[str, Any]:
         font = resolve_font(case)
         result = run_command(
             [
-                "cargo",
-                "run",
-                "-q",
-                "-p",
-                "unicode-pdf-cli",
-                "--",
+                *cargo_cli_prefix(),
                 "emit-pdf",
                 str(font),
                 str(fixture),

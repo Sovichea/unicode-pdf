@@ -2,6 +2,7 @@
 from __future__ import annotations
 import argparse,json,subprocess,shutil,sys
 from pathlib import Path
+from cargo_backend import cargo_cli_prefix
 ROOT=Path(__file__).resolve().parents[1]
 FAMILIES=["Noto Sans","Noto Sans Khmer","Noto Sans Arabic","Noto Sans Devanagari"]
 
@@ -18,8 +19,8 @@ def main():
  pdfjs=a.pdfjs_dist; pdfjs=pdfjs/'build/pdf.mjs' if pdfjs.is_dir() else pdfjs
  for c in cases:
   name=c['name']; fixture=ROOT/c['fixture']; pdf=a.out/f'{name}.pdf'; expected=a.out/f'{name}.geometry.json'; pj=a.out/f'{name}.pdfjs.json'; result=a.out/f'{name}.results.json'
-  run(['cargo','run','-q','-p','unicode-pdf-cli','--','emit-layout-pdf',str(fixture),str(pdf),*fonts])
-  run(['cargo','run','-q','-p','unicode-pdf-cli','--','dump-layout-geometry',str(fixture),str(expected),*fonts])
+  run([*cargo_cli_prefix(),'emit-layout-pdf',str(fixture),str(pdf),*fonts])
+  run([*cargo_cli_prefix(),'dump-layout-geometry',str(fixture),str(expected),*fonts])
   run(['node',str(ROOT/'conformance/geometry_pdfjs.mjs'),str(pdfjs),str(pdf),str(pj)])
   run(['python3',str(ROOT/'conformance/geometry_probe.py'),str(expected),str(pdf),'--pdfjs-json',str(pj),'--out',str(result)])
   res=json.loads(result.read_text()); allres[name]=res

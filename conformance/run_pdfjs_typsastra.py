@@ -10,6 +10,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from cargo_backend import cargo_cli_prefix
+
 ROOT = Path(__file__).resolve().parents[1]
 FONT_FAMILIES = [
     "Noto Sans",
@@ -134,8 +136,8 @@ def main() -> int:
     fonts = [font_for_family(family) for family in FONT_FAMILIES]
     pdf = args.out / "fixture.pdf"
     geometry_path = args.out / "geometry.json"
-    run(["cargo", "run", "-q", "-p", "unicode-pdf-cli", "--", "emit-layout-pdf", str(fixture), str(pdf), *fonts])
-    run(["cargo", "run", "-q", "-p", "unicode-pdf-cli", "--", "dump-layout-geometry", str(fixture), str(geometry_path), *fonts])
+    run([*cargo_cli_prefix(), "emit-layout-pdf", str(fixture), str(pdf), *fonts])
+    run([*cargo_cli_prefix(), "dump-layout-geometry", str(fixture), str(geometry_path), *fonts])
     geometry = json.loads(geometry_path.read_text(encoding="utf-8"))
 
     stock_dist = args.pdfjs_dist.resolve()
