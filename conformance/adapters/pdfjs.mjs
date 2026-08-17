@@ -57,5 +57,8 @@ for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
 
 process.stdout.write(JSON.stringify({
   version: pdfjs.version ?? "unknown",
-  text: pages.join("\n"),
+  // A physical page transition is transport metadata, not a semantic newline.
+  // The harness strips form-feed before comparison while still retaining it in
+  // raw output diagnostics.
+  text: pages.join("\f"),
 }));

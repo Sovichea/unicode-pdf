@@ -56,6 +56,9 @@ Selection normalization does exactly three things:
 2. form-feed page separators are removed;
 3. trailing LF characters are ignored.
 
+Reader adapters use form-feed between physical pages. The harness never inserts
+a semantic newline merely because text crossed a page boundary.
+
 It deliberately does **not** apply NFC/NFKC, strip BiDi controls, reorder combining marks, remove or insert spaces, or reconstruct reading order. Those changes are part of the behavior under test.
 
 Results are written to `target/conformance/results.json` and `target/conformance/RESULTS.md` by default. Raw reader output is retained under `target/conformance/extracted/<reader>/<case>.txt` so failures can be inspected or fed directly to the clipboard comparator.
@@ -75,6 +78,31 @@ The current layout fixtures intentionally cover three different questions:
 - `multifont-multipage`: the same model across five physical pages, primarily guarding pagination, page-local MCIDs, font resources, and reader stability.
 
 Soft line breaks are not normalized away by the conformance harness. This is intentional: the Unicode preservation contract says visual wrapping should not become semantic whitespace. The known-fail baseline keeps that interoperability gap visible rather than hiding it in comparison code.
+
+## Semantic paragraph fidelity
+
+The natural Khmer paragraph fixtures use external UTF-8 byte-offset break
+opportunities and contain no layout-inserted spaces, zero-width spaces, or
+newlines:
+
+- `khmer-paragraph-natural`: one logical paragraph wrapped across several visual lines;
+- `khmer-paragraph-multipage`: one logical paragraph spanning physical pages.
+
+`check_paragraph_semantics.py` validates the generated PDF structure directly.
+It requires `StructTreeRoot -> Document -> P` and verifies that each paragraph
+`/ActualText` decodes to the exact pre-layout source paragraph.
+
+```bash
+python conformance/check_paragraph_semantics.py \
+  --out target/conformance \
+  --json target/conformance/paragraph-semantics.json
+```
+
+This PDF-level semantic check is intentionally separate from reader extraction.
+Poppler, MuPDF, and PDFium currently synthesize newlines from visual Khmer line
+geometry even though the compiler-owned paragraph text is continuous. Stock
+PDF.js 6.2.108 returns the natural Khmer paragraph continuously in the current
+fixtures.
 
 ## Typsastra PDF.js browser selection
 

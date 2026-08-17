@@ -92,6 +92,30 @@
           "font_family": "Noto Sans Devanagari"
         }
       ]
+    },
+    {
+      "name": "khmer-paragraph-natural",
+      "fixture": "fixtures/khmer-paragraph-natural.txt",
+      "breaks": "fixtures/khmer-paragraph-natural.breaks.txt",
+      "generator": "layout",
+      "fonts": [
+        {
+          "font_env": "UNICODE_PDF_FONT_KHMER",
+          "font_family": "Noto Sans Khmer"
+        }
+      ]
+    },
+    {
+      "name": "khmer-paragraph-multipage",
+      "fixture": "fixtures/khmer-paragraph-multipage.txt",
+      "breaks": "fixtures/khmer-paragraph-multipage.breaks.txt",
+      "generator": "layout",
+      "fonts": [
+        {
+          "font_env": "UNICODE_PDF_FONT_KHMER",
+          "font_family": "Noto Sans Khmer"
+        }
+      ]
     }
   ]
 }

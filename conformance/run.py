@@ -131,12 +131,21 @@ def generate_pdf(case: dict[str, Any], output: Path) -> dict[str, Any]:
     output.parent.mkdir(parents=True, exist_ok=True)
     if case.get("generator") == "layout":
         fonts = [resolve_font_spec(spec) for spec in case["fonts"]]
-        command = [
-            "cargo", "run", "-q", "-p", "unicode-pdf-cli", "--",
-            "emit-layout-pdf", str(fixture), str(output), *map(str, fonts),
-        ]
+        if case.get("breaks"):
+            breaks = (ROOT / case["breaks"]).resolve()
+            command = [
+                "cargo", "run", "-q", "-p", "unicode-pdf-cli", "--",
+                "emit-layout-pdf-breaks", str(fixture), str(breaks), str(output), *map(str, fonts),
+            ]
+        else:
+            command = [
+                "cargo", "run", "-q", "-p", "unicode-pdf-cli", "--",
+                "emit-layout-pdf", str(fixture), str(output), *map(str, fonts),
+            ]
         result = run_command(command)
         metadata: dict[str, Any] = {"fonts": [str(font) for font in fonts]}
+        if case.get("breaks"):
+            metadata["breaks"] = str((ROOT / case["breaks"]).resolve())
     else:
         font = resolve_font(case)
         result = run_command(
@@ -233,7 +242,7 @@ def extract_mupdf(pdf: Path) -> tuple[str, str]:
     fitz = importlib.import_module("fitz")
     document = fitz.open(pdf)
     try:
-        text = "\n".join(page.get_text("text", sort=False) for page in document)
+        text = "\f".join(page.get_text("text", sort=False) for page in document)
     finally:
         document.close()
     version = getattr(fitz, "version", ("unknown", "unknown"))
@@ -254,7 +263,7 @@ def extract_pdfium(pdf: Path) -> tuple[str, str]:
             page.close()
     finally:
         document.close()
-    return "\n".join(pages), f"pypdfium2 {pdfium.PYPDFIUM_INFO} / PDFium {pdfium.PDFIUM_INFO}"
+    return "\f".join(pages), f"pypdfium2 {pdfium.PYPDFIUM_INFO} / PDFium {pdfium.PDFIUM_INFO}"
 
 
 def extract_pdfjs(pdf: Path, pdfjs_module: Path) -> tuple[str, str]:

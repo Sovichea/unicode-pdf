@@ -17,8 +17,8 @@ use unicode_pdf_shape::{ShapeOptions, TextShaper};
 use unicode_pdf_shape_harfbuzz::HarfBuzzShaper;
 use unicode_pdf_write::{
     build_type0_document_pdf, build_type0_single_page_pdf, plan_text_run, ActualTextPolicy,
-    DocumentPlacedTextRun, EmbeddedType0Font, PlacedTextRun, TextPlan, Type0DocumentOptions,
-    Type0PdfOptions,
+    DocumentParagraphText, DocumentPlacedTextRun, EmbeddedType0Font, ParagraphTextPolicy,
+    PlacedTextRun, TextPlan, Type0DocumentOptions, Type0PdfOptions,
 };
 
 fn main() -> ExitCode {
@@ -494,6 +494,16 @@ fn emit_layout_pdf_with_breaks(
         tagged: true,
         document_language: document_language_from_layout(&layout.runs).to_owned(),
         actual_text: ActualTextPolicy::Off,
+        paragraphs: layout
+            .paragraphs
+            .iter()
+            .map(|paragraph| DocumentParagraphText {
+                paragraph_index: paragraph.paragraph_index,
+                unicode: paragraph.unicode.clone(),
+                terminated_by_newline: paragraph.terminated_by_newline,
+            })
+            .collect(),
+        paragraph_text: paragraph_text_policy_from_env()?,
     };
     let pdf = build_type0_document_pdf(&embedded, layout.page_count, &placed, &options)
         .map_err(|error| error.to_string())?;
@@ -506,12 +516,29 @@ fn emit_layout_pdf_with_breaks(
     println!("embedded_fonts: {}", embedded.len());
     println!("semantic_runs: {}", layout.runs.len());
     println!("visual_lines: {}", layout.line_count);
+    println!("logical_paragraphs: {}", layout.paragraphs.len());
     println!("pages: {}", layout.page_count);
     println!(
         "round_trip_units: {}",
         logical_layout_text(&layout.runs) == text.replace('\n', "")
     );
+    println!("round_trip_paragraphs: {}", layout.logical_text() == text);
     Ok(())
+}
+
+fn paragraph_text_policy_from_env() -> Result<ParagraphTextPolicy, String> {
+    match std::env::var("UNICODE_PDF_PARAGRAPH_TEXT_POLICY")
+        .unwrap_or_else(|_| "structure".to_owned())
+        .as_str()
+    {
+        "off" => Ok(ParagraphTextPolicy::Off),
+        "structure" => Ok(ParagraphTextPolicy::StructureActualText),
+        "page-fragment" => Ok(ParagraphTextPolicy::PageFragmentActualText),
+        "structure-and-page-fragment" => Ok(ParagraphTextPolicy::StructureAndPageFragment),
+        other => Err(format!(
+            "invalid UNICODE_PDF_PARAGRAPH_TEXT_POLICY={other:?}; expected off, structure, page-fragment, or structure-and-page-fragment"
+        )),
+    }
 }
 
 fn logical_layout_text(runs: &[unicode_pdf_layout::LayoutRun]) -> String {

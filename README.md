@@ -10,7 +10,7 @@ This repository grew out of reproducible failures involving Khmer PDF copy/paste
 
 ## Status
 
-**Early alpha / research prototype.** The Rust workspace now includes backend-neutral shaping and BiDi traits, runtime-loaded system HarfBuzz and FriBidi adapters, CID planning, authoritative `/ToUnicode`, TrueType composite-glyph synthesis, Type0/CIDFontType2 PDF emission, and Tagged PDF semantic structure.
+**Early alpha / research prototype.** The Rust workspace now includes backend-neutral shaping and BiDi traits, runtime-loaded system HarfBuzz and FriBidi adapters, CID planning, authoritative `/ToUnicode`, TrueType composite-glyph synthesis, Type0/CIDFontType2 PDF emission, Tagged PDF semantic structure, and compiler-owned logical paragraphs that remain independent from visual line/page breaks.
 
 The `emit-pdf` development command performs `UTF-8 -> FriBidi directional spans -> HarfBuzz logical units -> synthetic glyph font -> tagged Type0 PDF`. The newer `emit-layout-pdf` path adds real `cmap`-based multi-font fallback, paragraph wrapping, multi-line layout, pagination, multiple embedded Type0 fonts, and page-local tagged-PDF MCIDs. A cross-reader conformance harness exercises generated PDFs through Poppler, MuPDF, PDFium, and stock PDF.js. Khmer and Devanagari remain exact in Poppler, MuPDF, and PDFium for the established single-font fixtures. Multi-font inline Khmer/Latin/Devanagari now passes exactly in Poppler, MuPDF, and PDFium. For Typsastra's PDF.js-based live preview, the repository now also includes an opt-in `preserveLogicalText` compatibility patch and a real-browser DOM Range/Selection conformance harness. Arabic and soft-wrapped paragraph extraction still expose reader-specific reconstruction behavior.
 
@@ -99,7 +99,7 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the design in detail.
 - `unicode-pdf-bidi`: safe backend-neutral Unicode BiDi analysis contract.
 - `unicode-pdf-bidi-fribidi`: isolated runtime-loaded GNU FriBidi adapter.
 - `unicode-pdf-font`: TrueType Unicode `cmap` coverage, visual-unit keys, CID allocation, and composite-glyph synthesis.
-- `unicode-pdf-layout`: `cmap`-driven font fallback, BiDi-aware line wrapping, visual line placement, and pagination.
+- `unicode-pdf-layout`: `cmap`-driven font fallback, compiler-owned logical paragraphs, external language-aware break opportunities, BiDi-aware line wrapping, visual line placement, and pagination.
 - `unicode-pdf-shape`: safe backend-neutral shaping trait and result types.
 - `unicode-pdf-shape-harfbuzz`: isolated runtime-loaded system HarfBuzz adapter.
 - `unicode-pdf-write`: `/ToUnicode`, single- and multi-font Type0/CIDFontType2 embedding, multi-page resources, `/CIDToGIDMap`, Tagged PDF structure, page-local MCIDs, `/Lang`, writing direction metadata, and logical-order page-content emission.
@@ -178,6 +178,18 @@ cargo run -p unicode-pdf-cli -- emit-layout-pdf \
 
 Fallback selection uses each font's Unicode `cmap`, not filename/script assumptions. The first font covering a scalar wins, while neutral characters preferentially stay with the surrounding font when possible. Soft wrapping changes geometry only; the logical units do not receive inserted line-break characters.
 
+Language-aware line breaking can be supplied as UTF-8 byte offsets without modifying the source string:
+
+```bash
+cargo run -p unicode-pdf-cli -- emit-layout-pdf-breaks \
+  fixtures/khmer-paragraph-natural.txt \
+  fixtures/khmer-paragraph-natural.breaks.txt \
+  /tmp/khmer-paragraph.pdf \
+  /path/to/NotoSansKhmer-Regular.ttf
+```
+
+The layout result retains the exact pre-layout paragraph text and hard source paragraph boundaries. The tagged PDF hierarchy is `StructTreeRoot -> Document -> P -> Span -> MCID`. By default each `/P` structure element also carries the exact compiler-owned paragraph Unicode in `/ActualText`. Experimental page-fragment `/ActualText` policies are available for interoperability research but are not the production default because reader support is inconsistent.
+
 On a Debian/Ubuntu-like development system with Noto fonts, Poppler, and Ghostscript installed, run the interoperability smoke test with:
 
 ```bash
@@ -203,6 +215,8 @@ scripts/run-conformance.sh --check-baseline
 ```
 
 See [conformance/README.md](conformance/README.md) and [the cross-reader milestone report](docs/MILESTONE_CROSS_READER_CONFORMANCE.md).
+
+Paragraph semantics and external Khmer break opportunities are covered in [the semantic paragraph fidelity milestone](docs/MILESTONE_SEMANTIC_PARAGRAPH_FIDELITY.md).
 
 ### Typsastra PDF.js selection mode
 

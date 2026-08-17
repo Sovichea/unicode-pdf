@@ -185,6 +185,24 @@ pub struct LayoutRun {
     pub font_size: f64,
 }
 
+/// One semantic paragraph retained independently from its visual lines.
+///
+/// `unicode` is copied exactly from the caller's UTF-8 source, excluding the
+/// hard paragraph delimiter itself. Soft wrapping and pagination never modify
+/// this string.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LogicalParagraph {
+    /// Stable paragraph identifier referenced by [`LayoutRun::paragraph_index`].
+    pub paragraph_index: u32,
+    /// UTF-8 byte range occupied by this paragraph in the original source.
+    pub source_range: SourceRange,
+    /// Exact logical Unicode of the paragraph before layout.
+    pub unicode: String,
+    /// Whether the source contained a hard paragraph delimiter after this
+    /// paragraph. The delimiter is source semantics, unlike a soft visual wrap.
+    pub terminated_by_newline: bool,
+}
+
 impl LayoutRun {
     /// Reconstructs this run's exact logical Unicode.
     #[must_use]
@@ -203,8 +221,27 @@ pub struct LayoutDocument {
     pub page_count: u32,
     /// Semantic runs in logical source order.
     pub runs: Vec<LayoutRun>,
+    /// Exact logical paragraphs in source order.
+    pub paragraphs: Vec<LogicalParagraph>,
     /// Number of visual soft-wrapped lines.
     pub line_count: usize,
+}
+
+impl LayoutDocument {
+    /// Reconstructs the exact logical UTF-8 text represented by the semantic
+    /// paragraph model, including hard source newlines but excluding all soft
+    /// visual wraps and page breaks.
+    #[must_use]
+    pub fn logical_text(&self) -> String {
+        let mut output = String::new();
+        for paragraph in &self.paragraphs {
+            output.push_str(&paragraph.unicode);
+            if paragraph.terminated_by_newline {
+                output.push('\n');
+            }
+        }
+        output
+    }
 }
 
 /// Shapes, wraps, and paginates a UTF-8 document using font fallback.
@@ -256,6 +293,7 @@ pub fn layout_document_with_break_opportunities<S: TextShaper, B: BidiResolver>(
         }
     }
     let mut runs = Vec::new();
+    let mut paragraphs = Vec::new();
     let mut page_index = 0_u32;
     let mut baseline_y = options.page_height - options.margin_top - options.font_size;
     let mut line_count = 0_usize;
@@ -268,6 +306,14 @@ pub fn layout_document_with_break_opportunities<S: TextShaper, B: BidiResolver>(
             .strip_suffix('\n')
             .unwrap_or(paragraph_with_newline);
         let paragraph_end = paragraph_start + paragraph.len();
+        let source_range = SourceRange::new(paragraph_start, paragraph_end)
+            .map_err(|_| LayoutError::InvalidUtf8Boundary)?;
+        paragraphs.push(LogicalParagraph {
+            paragraph_index,
+            source_range,
+            unicode: paragraph.to_owned(),
+            terminated_by_newline: has_newline,
+        });
         let local_breaks: Vec<usize> = break_opportunities
             .iter()
             .copied()
@@ -314,11 +360,18 @@ pub fn layout_document_with_break_opportunities<S: TextShaper, B: BidiResolver>(
     // `split_inclusive` yields no item for an empty string.
     if text.is_empty() {
         line_count = 1;
+        paragraphs.push(LogicalParagraph {
+            paragraph_index: 0,
+            source_range: SourceRange::new(0, 0).map_err(|_| LayoutError::InvalidUtf8Boundary)?,
+            unicode: String::new(),
+            terminated_by_newline: false,
+        });
     }
 
     Ok(LayoutDocument {
         page_count: page_index.saturating_add(1),
         runs,
+        paragraphs,
         line_count,
     })
 }
@@ -832,6 +885,51 @@ mod tests {
     fn default_layout_has_positive_content_width() {
         assert!(LayoutOptions::default().content_width() > 0.0);
     }
+
+    #[test]
+    fn logical_paragraph_metadata_distinguishes_hard_and_soft_breaks() {
+        let text = "abc\ndef";
+        let first = LogicalParagraph {
+            paragraph_index: 0,
+            source_range: SourceRange::new(0, 3).unwrap(),
+            unicode: text[..3].to_owned(),
+            terminated_by_newline: true,
+        };
+        let second = LogicalParagraph {
+            paragraph_index: 1,
+            source_range: SourceRange::new(4, 7).unwrap(),
+            unicode: text[4..].to_owned(),
+            terminated_by_newline: false,
+        };
+        assert_eq!(first.unicode, "abc");
+        assert!(first.terminated_by_newline);
+        assert_eq!(second.unicode, "def");
+        assert!(!second.terminated_by_newline);
+    }
+
+    #[test]
+    fn layout_document_logical_text_keeps_only_hard_newlines() {
+        let document = LayoutDocument {
+            page_count: 2,
+            runs: Vec::new(),
+            paragraphs: vec![
+                LogicalParagraph {
+                    paragraph_index: 0,
+                    source_range: SourceRange::new(0, 3).unwrap(),
+                    unicode: "abc".to_owned(),
+                    terminated_by_newline: true,
+                },
+                LogicalParagraph {
+                    paragraph_index: 1,
+                    source_range: SourceRange::new(4, 7).unwrap(),
+                    unicode: "def".to_owned(),
+                    terminated_by_newline: false,
+                },
+            ],
+            line_count: 5,
+        };
+        assert_eq!(document.logical_text(), "abc\ndef");
+    }
 }
 
 /// Axis-aligned rectangle in PDF user-space points.
@@ -1113,6 +1211,7 @@ mod geometry_tests {
         let document = LayoutDocument {
             page_count: 1,
             line_count: 1,
+            paragraphs: Vec::new(),
             runs: vec![LayoutRun {
                 font_index: 0,
                 units_per_em: 1000,
@@ -1156,6 +1255,7 @@ mod geometry_tests {
         let geometry = GeometryIndex::from_layout(&LayoutDocument {
             page_count: 2,
             line_count: 2,
+            paragraphs: Vec::new(),
             runs: vec![first, second],
         });
         let rects = geometry.selection_rects(0..2);

@@ -53,6 +53,11 @@ jobs:
             --require poppler,mupdf,pdfium,pdfjs \
             --pdfjs-dist target/conformance-node/node_modules/pdfjs-dist \
             --check-baseline
+      - name: Paragraph semantic fidelity
+        run: |
+          python conformance/check_paragraph_semantics.py \
+            --out target/conformance \
+            --json target/conformance/paragraph-semantics.json
       - name: Selection geometry conformance
         run: |
           python conformance/run_geometry.py \
@@ -83,6 +88,7 @@ jobs:
           path: |
             target/conformance/RESULTS.md
             target/conformance/results.json
+            target/conformance/paragraph-semantics.json
             target/conformance/*.pdf
             target/conformance/extracted/**
             target/geometry-conformance/RESULTS.md

@@ -4,6 +4,12 @@ All notable changes to this project will be documented here.
 
 ## Unreleased
 
+- Added first-class compiler-owned logical paragraphs with exact UTF-8 source ranges and hard-newline reconstruction independent from soft visual wrapping.
+- Added external UTF-8 byte-offset line-break opportunities so ICU4X, Khmer segmentation, or another boundary provider can drive wrapping without inserting Unicode into source text.
+- Changed Tagged PDF hierarchy to `StructTreeRoot -> Document -> P -> Span -> MCID` and added exact paragraph `/ActualText` on `/P` structure elements by default for layout PDFs.
+- Added experimental page-local paragraph-fragment `/ActualText` policy for reader interoperability research; it is not the default because PDFium, MuPDF, and Poppler interpret it differently.
+- Added natural one-page and multi-page Khmer paragraph conformance fixtures and a PDF-level semantic checker that verifies paragraph `/ActualText` is byte-for-byte equivalent to pre-layout source Unicode.
+- Fixed cross-reader conformance adapters so physical page transitions use form-feed transport separators rather than inventing semantic newlines.
 - Added `unicode-pdf-layout` with real `cmap`-based ordered font fallback, BiDi-aware line shaping, greedy whitespace wrapping, and pagination.
 - Added multi-font/multi-page Type0/CIDFontType2 emission with page-local MCIDs and cross-page Tagged PDF structure.
 - Added contiguous LTR CID text emission to avoid PDFium fragmentation caused by one absolute `Tm` per logical unit.

@@ -219,6 +219,51 @@ pub enum ActualTextPolicy {
     AllRuns,
 }
 
+/// Controls paragraph-level replacement text independently from run-level
+/// [`ActualTextPolicy`].
+///
+/// Paragraph replacement text is sourced from the compiler's pre-layout
+/// logical paragraph, never reconstructed from visual line geometry.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum ParagraphTextPolicy {
+    /// Do not add paragraph-level `/ActualText`.
+    #[default]
+    Off,
+    /// Put exact paragraph Unicode on the `/P` structure element.
+    StructureActualText,
+    /// Wrap each page-local paragraph fragment in marked-content `/ActualText`.
+    PageFragmentActualText,
+    /// Emit both structure-level and page-fragment replacement text.
+    StructureAndPageFragment,
+}
+
+impl ParagraphTextPolicy {
+    fn structure_actual_text(self) -> bool {
+        matches!(
+            self,
+            Self::StructureActualText | Self::StructureAndPageFragment
+        )
+    }
+
+    fn page_fragment_actual_text(self) -> bool {
+        matches!(
+            self,
+            Self::PageFragmentActualText | Self::StructureAndPageFragment
+        )
+    }
+}
+
+/// Authoritative semantic text for one logical paragraph.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct DocumentParagraphText {
+    /// Paragraph identifier shared with [`DocumentPlacedTextRun::paragraph_index`].
+    pub paragraph_index: u32,
+    /// Exact logical Unicode before visual wrapping and pagination.
+    pub unicode: String,
+    /// Whether a hard source newline followed the paragraph.
+    pub terminated_by_newline: bool,
+}
+
 /// One embedded Type0 font resource in a multi-font PDF document.
 #[derive(Clone, Debug)]
 pub struct EmbeddedType0Font<'a> {
@@ -266,6 +311,10 @@ pub struct Type0DocumentOptions {
     pub document_language: String,
     /// Scope for optional `/ActualText` replacement text.
     pub actual_text: ActualTextPolicy,
+    /// Exact compiler-owned paragraph text used for semantic replacement.
+    pub paragraphs: Vec<DocumentParagraphText>,
+    /// Controls paragraph-level semantic replacement text.
+    pub paragraph_text: ParagraphTextPolicy,
 }
 
 impl Default for Type0DocumentOptions {
@@ -276,6 +325,8 @@ impl Default for Type0DocumentOptions {
             tagged: true,
             document_language: "und".to_owned(),
             actual_text: ActualTextPolicy::Off,
+            paragraphs: Vec::new(),
+            paragraph_text: ParagraphTextPolicy::Off,
         }
     }
 }
@@ -501,6 +552,8 @@ pub fn build_type0_document_pdf(
             &page_refs,
             &marked_runs,
             &options.document_language,
+            &options.paragraphs,
+            options.paragraph_text,
         )?)
     } else {
         None
@@ -593,14 +646,18 @@ fn build_document_marked_runs(
     Ok(marked)
 }
 
+#[allow(clippy::too_many_lines)]
 fn embed_document_structure_tree(
     pdf: &mut PdfBuilder,
     page_refs: &[usize],
     marked_runs: &[DocumentMarkedRun],
     document_language: &str,
+    paragraphs: &[DocumentParagraphText],
+    paragraph_text_policy: ParagraphTextPolicy,
 ) -> Result<TaggingObjects, PdfWriteError> {
     let struct_tree_root = pdf.reserve();
     let parent_tree = pdf.reserve();
+    let document_ref = pdf.reserve();
 
     let mut paragraph_ids = Vec::<u32>::new();
     for run in marked_runs {
@@ -645,9 +702,18 @@ fn embed_document_structure_tree(
             .map(|(_, span_ref)| format!("{span_ref} 0 R"))
             .collect::<Vec<_>>()
             .join(" ");
+        let actual_text = if paragraph_text_policy.structure_actual_text() {
+            paragraphs
+                .iter()
+                .find(|paragraph| paragraph.paragraph_index == *paragraph_id)
+                .map(|paragraph| format!(" /ActualText {}", pdf_text_string(&paragraph.unicode)))
+                .unwrap_or_default()
+        } else {
+            String::new()
+        };
         pdf.set(
             *paragraph_ref,
-            format!("<< /Type /StructElem /S /P /P {struct_tree_root} 0 R /K [{kids}] >>")
+            format!("<< /Type /StructElem /S /P /P {document_ref} 0 R /K [{kids}]{actual_text} >>")
                 .into_bytes(),
         );
     }
@@ -676,15 +742,22 @@ fn embed_document_structure_tree(
         format!("<< /Nums [{parent_nums}] >>").into_bytes(),
     );
 
-    let root_kids = paragraph_refs
+    let document_kids = paragraph_refs
         .iter()
         .map(|reference| format!("{reference} 0 R"))
         .collect::<Vec<_>>()
         .join(" ");
     pdf.set(
+        document_ref,
+        format!(
+            "<< /Type /StructElem /S /Document /P {struct_tree_root} 0 R /K [{document_kids}] >>"
+        )
+        .into_bytes(),
+    );
+    pdf.set(
         struct_tree_root,
         format!(
-            "<< /Type /StructTreeRoot /K [{root_kids}] /ParentTree {parent_tree} 0 R \
+            "<< /Type /StructTreeRoot /K [{document_ref} 0 R] /ParentTree {parent_tree} 0 R \
              /ParentTreeNextKey {} >>",
             page_refs.len()
         )
@@ -702,7 +775,54 @@ fn validate_document_options(options: &Type0DocumentOptions) -> Result<(), PdfWr
             return Err(PdfWriteError::InvalidMetric(name));
         }
     }
+    for (index, paragraph) in options.paragraphs.iter().enumerate() {
+        if options.paragraphs[..index]
+            .iter()
+            .any(|other| other.paragraph_index == paragraph.paragraph_index)
+        {
+            return Err(PdfWriteError::InvalidMetric("duplicate paragraph index"));
+        }
+    }
     Ok(())
+}
+
+fn page_paragraph_fragment_text(
+    page_index: u32,
+    paragraph_index: u32,
+    runs: &[DocumentPlacedTextRun<'_>],
+) -> String {
+    runs.iter()
+        .filter(|run| {
+            run.page_index == page_index
+                && run.paragraph_index == paragraph_index
+                && !run.plan.units.is_empty()
+        })
+        .map(|run| run.plan.extracted_text())
+        .collect()
+}
+
+fn is_first_page_paragraph_run(
+    run_index: usize,
+    run: &DocumentPlacedTextRun<'_>,
+    runs: &[DocumentPlacedTextRun<'_>],
+) -> bool {
+    !runs[..run_index].iter().any(|other| {
+        other.page_index == run.page_index
+            && other.paragraph_index == run.paragraph_index
+            && !other.plan.units.is_empty()
+    })
+}
+
+fn is_last_page_paragraph_run(
+    run_index: usize,
+    run: &DocumentPlacedTextRun<'_>,
+    runs: &[DocumentPlacedTextRun<'_>],
+) -> bool {
+    !runs[run_index + 1..].iter().any(|other| {
+        other.page_index == run.page_index
+            && other.paragraph_index == run.paragraph_index
+            && !other.plan.units.is_empty()
+    })
 }
 
 fn build_document_page_content(
@@ -725,6 +845,20 @@ fn build_document_page_content(
             run.font_index,
             pdf_number(run.font_size)
         );
+
+        let fragment_actual_text = options.paragraph_text.page_fragment_actual_text();
+        let first_fragment_run =
+            fragment_actual_text && is_first_page_paragraph_run(run_index, run, runs);
+        let last_fragment_run =
+            fragment_actual_text && is_last_page_paragraph_run(run_index, run, runs);
+        if first_fragment_run {
+            let replacement = page_paragraph_fragment_text(page_index, run.paragraph_index, runs);
+            let _ = writeln!(
+                content,
+                "/Span << /ActualText {} >> BDC",
+                pdf_text_string(&replacement)
+            );
+        }
 
         if options.tagged {
             let marked = marked_runs
@@ -750,6 +884,9 @@ fn build_document_page_content(
                 run.plan.cid_hex_string()
             );
             if options.tagged {
+                content.push_str("EMC\n");
+            }
+            if last_fragment_run {
                 content.push_str("EMC\n");
             }
             continue;
@@ -789,6 +926,9 @@ fn build_document_page_content(
             content.push_str("EMC\n");
         }
         if options.tagged {
+            content.push_str("EMC\n");
+        }
+        if last_fragment_run {
             content.push_str("EMC\n");
         }
     }
@@ -866,6 +1006,7 @@ fn embed_structure_tree(
 ) -> Result<TaggingObjects, PdfWriteError> {
     let struct_tree_root = pdf.reserve();
     let parent_tree = pdf.reserve();
+    let document_ref = pdf.reserve();
 
     let mut paragraph_ids = Vec::<u32>::new();
     for run in marked_runs {
@@ -909,8 +1050,7 @@ fn embed_structure_tree(
             .join(" ");
         pdf.set(
             *paragraph_ref,
-            format!("<< /Type /StructElem /S /P /P {struct_tree_root} 0 R /K [{kids}] >>")
-                .into_bytes(),
+            format!("<< /Type /StructElem /S /P /P {document_ref} 0 R /K [{kids}] >>").into_bytes(),
         );
     }
 
@@ -923,15 +1063,22 @@ fn embed_structure_tree(
         parent_tree,
         format!("<< /Nums [0 [{parent_array}]] >>").into_bytes(),
     );
-    let root_kids = paragraph_refs
+    let document_kids = paragraph_refs
         .iter()
         .map(|reference| format!("{reference} 0 R"))
         .collect::<Vec<_>>()
         .join(" ");
     pdf.set(
+        document_ref,
+        format!(
+            "<< /Type /StructElem /S /Document /P {struct_tree_root} 0 R /K [{document_kids}] >>"
+        )
+        .into_bytes(),
+    );
+    pdf.set(
         struct_tree_root,
         format!(
-            "<< /Type /StructTreeRoot /K [{root_kids}] /ParentTree {parent_tree} 0 R \
+            "<< /Type /StructTreeRoot /K [{document_ref} 0 R] /ParentTree {parent_tree} 0 R \
              /ParentTreeNextKey 1 >>"
         )
         .into_bytes(),
@@ -1694,5 +1841,90 @@ mod tests {
         .unwrap();
         assert!(content.contains("1 0 0 1 100 700 Tm <00010002> Tj"));
         assert_eq!(content.matches(" Tj").count(), 1);
+    }
+
+    #[test]
+    fn page_fragment_text_joins_visual_lines_without_newlines() {
+        let first = TextPlan {
+            units: vec![PlannedUnit {
+                cid: Cid(1),
+                unicode: "abc".to_owned(),
+                visual_x: 0,
+                visual_end_x: 500,
+            }],
+            to_unicode: Vec::new(),
+        };
+        let second = TextPlan {
+            units: vec![PlannedUnit {
+                cid: Cid(2),
+                unicode: "def".to_owned(),
+                visual_x: 0,
+                visual_end_x: 500,
+            }],
+            to_unicode: Vec::new(),
+        };
+        let runs = [
+            DocumentPlacedTextRun {
+                plan: &first,
+                font_index: 0,
+                page_index: 0,
+                run_origin_x: 10.0,
+                baseline_y: 700.0,
+                font_size: 10.0,
+                direction: TextDirection::LeftToRight,
+                language: Some("und-Latn"),
+                paragraph_index: 4,
+            },
+            DocumentPlacedTextRun {
+                plan: &second,
+                font_index: 0,
+                page_index: 0,
+                run_origin_x: 10.0,
+                baseline_y: 680.0,
+                font_size: 10.0,
+                direction: TextDirection::LeftToRight,
+                language: Some("und-Latn"),
+                paragraph_index: 4,
+            },
+        ];
+        assert_eq!(page_paragraph_fragment_text(0, 4, &runs), "abcdef");
+    }
+
+    #[test]
+    fn document_structure_can_carry_authoritative_paragraph_actual_text() {
+        let marked = [DocumentMarkedRun {
+            run_index: 0,
+            page_index: 0,
+            mcid: 0,
+            paragraph_index: 9,
+            direction: TextDirection::LeftToRight,
+            language: Some("und-Khmr".to_owned()),
+        }];
+        let paragraph = DocumentParagraphText {
+            paragraph_index: 9,
+            unicode: "ខ្មែរ".to_owned(),
+            terminated_by_newline: false,
+        };
+        let mut pdf = PdfBuilder::new();
+        let page = pdf.reserve();
+        let tagging = embed_document_structure_tree(
+            &mut pdf,
+            &[page],
+            &marked,
+            "und-Khmr",
+            &[paragraph],
+            ParagraphTextPolicy::StructureActualText,
+        )
+        .unwrap();
+        let all_objects = pdf
+            .objects
+            .iter()
+            .filter_map(|object| object.as_ref())
+            .flat_map(|object| object.iter().copied())
+            .collect::<Vec<_>>();
+        let all = String::from_utf8(all_objects).unwrap();
+        assert!(all.contains("/ActualText <FEFF178117D2179817C2179A>"));
+        assert!(all.contains("/S /P"));
+        assert!(tagging.struct_tree_root > 0);
     }
 }

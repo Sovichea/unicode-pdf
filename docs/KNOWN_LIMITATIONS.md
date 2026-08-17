@@ -23,7 +23,7 @@ Stock PDF.js 6.2.108 still has selection/extraction assumptions that conflict wi
 - PDF.js can discard explicit whitespace and infer spaces geometrically;
 - combining multiple complex CIDs into one TextLayer span can compress browser selection geometry.
 
-For Typsastra, where PDF.js is the existing preview architecture, `integrations/pdfjs` now contains an opt-in `preserveLogicalText` compatibility mode. In the Chromium DOM-selection harness it restores exact copied Khmer/Devanagari text and approximately 99.9-100% selection-rectangle overlap for the focused complex-script cases. The original user-visible problem was observed in Firefox, but a Firefox binary could not be installed in this sandbox because outbound DNS is unavailable. The harness supports Firefox and CI/manual Firefox validation remains required before claiming a verified Firefox release result.
+For Typsastra, where PDF.js is the existing preview architecture, `integrations/pdfjs` now contains an opt-in `preserveLogicalText` compatibility mode. In the Chromium DOM-selection harness it restores exact copied Khmer/Devanagari text and approximately 99.9-100% selection-rectangle overlap for the focused complex-script cases. Manual Firefox testing has since confirmed exact copy/paste but Firefox still paints fragmented native selection highlights for some Khmer logical units. That visual painting quirk is treated as a reader/browser responsibility rather than a compiler-side target.
 
 The generated PDF itself remains standards-oriented. The PDF.js patch is a viewer integration needed by Typsastra, not a semantic requirement for readers such as Acrobat or MuPDF.
 
@@ -45,18 +45,20 @@ The generated fonts have been reopened and decomposed successfully with FontTool
 The Rust writer now emits multiple Type0/CIDFontType2 resources across multiple tagged pages. `unicode-pdf-layout` provides `cmap`-based fallback, whitespace wrapping, line placement, and pagination. The remaining production limitations are:
 
 - horizontal writing only;
-- greedy whitespace line breaking rather than full UAX #14;
+- no built-in UAX #14/ICU4X provider yet; callers can supply language-aware UTF-8 byte-offset break opportunities from an external segmenter;
 - no language-aware hyphenation or justification;
 - fixed font size and line height per layout call;
 - source fonts are retained rather than truly subset;
 - no stream compression;
 - CFF/CFF2, collections, variable instances, and color-font visuals are not yet supported.
 
-Soft line wrapping is semantic-preserving inside the producer, but mainstream extractors often synthesize newlines or replace source spaces based on visual lines. The strict conformance harness therefore marks the long wrapped fixtures as known failures even when the non-whitespace script content is visually and logically intact in the PDF model.
+Soft line wrapping is semantic-preserving inside the producer. `LogicalParagraph` retains exact pre-layout Unicode and the tagged `/P` can carry the same text in `/ActualText`, including when one paragraph spans physical pages. Poppler, MuPDF, and PDFium still synthesize line-break characters from visual geometry in the natural Khmer paragraph fixture. Stock PDF.js 6.2.108 preserves the continuous Khmer paragraph exactly in the same fixture, including across pages once page transitions are treated as transport separators rather than semantic newlines.
 
 ## Tagged PDF and `/ActualText`
 
-Tagged PDF structure, MCIDs, paragraph/span grouping, `/Lang`, and directional `/WritingMode` are now implemented. `/ActualText` is controlled by `ActualTextPolicy`; the CLI scopes it to multi-codepoint logical units.
+Tagged PDF structure, MCIDs, `Document -> P -> Span` grouping, `/Lang`, and directional `/WritingMode` are now implemented. Run-level `/ActualText` is controlled by `ActualTextPolicy`. Paragraph-level replacement text is controlled separately; layout PDFs default to exact `/ActualText` on the `/P` structure element.
+
+An experimental page-fragment `/ActualText` policy can make Poppler suppress visual-wrap newlines for the one-page Khmer paragraph, but the same representation is ignored by MuPDF and causes empty text extraction in the tested PDFium binding. It therefore remains opt-in and is not suitable as a production interoperability default.
 
 In the tested Poppler version, neither marked-content nor structure-element replacement text prevents later Arabic BiDi/combining-mark processing. Tags are still important for logical structure and accessibility, but they are not a universal override for reader extraction algorithms.
 

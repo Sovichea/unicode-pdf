@@ -89,9 +89,11 @@ The writer now supports multiple embedded Type0/CIDFontType2 resources and multi
 
 ## 8. `/ActualText` and Tagged PDF
 
-The writer now emits `StructTreeRoot -> P -> Span` structure, MCIDs, a page parent tree, catalog/page tagging metadata, BCP 47 `/Lang`, and `/WritingMode` on directional spans. Directional spans that share a paragraph identifier remain children of the same `/P` element.
+The writer now emits `StructTreeRoot -> Document -> P -> Span` structure, MCIDs, a page parent tree, catalog/page tagging metadata, BCP 47 `/Lang`, and `/WritingMode` on directional spans. Directional spans and visual lines that share a paragraph identifier remain children of the same `/P` element.
 
-`/ActualText` is intentionally policy-controlled. It can be disabled, emitted only for multi-codepoint logical units, or scoped to RTL/all runs. The development CLI uses the complex-unit policy.
+The layout layer retains a `LogicalParagraph` containing the exact source Unicode before visual wrapping. The writer can attach that authoritative string to the `/P` structure element with `/ActualText`. Soft line wraps and physical page transitions are therefore absent from the compiler-owned paragraph representation even if a third-party extractor independently reconstructs newline characters from page geometry.
+
+`/ActualText` is intentionally policy-controlled. Run-level replacement can be disabled, emitted only for multi-codepoint logical units, or scoped to RTL/all runs. Paragraph-level replacement is controlled separately. Structure-element paragraph `/ActualText` is the production default for layout PDFs; page-local paragraph-fragment replacement remains experimental because Poppler, MuPDF, PDFium, and PDF.js do not interpret it consistently.
 
 These mechanisms complement correct `/ToUnicode`; they do not replace it. Current Poppler testing shows that even correct tags and replacement text do not prevent every reader from applying its own Arabic BiDi/mark transformation after decoding Unicode.
 
@@ -128,8 +130,8 @@ The Rust synthesizer currently targets horizontal `glyf`-based TrueType fonts. I
 
 `unicode-pdf-layout` is the first real layout layer. It parses Unicode coverage from each candidate font's TrueType/OpenType `cmap` table, chooses the first covering font, and shapes maximal same-font spans rather than guessing coverage from font names. Neutral whitespace/punctuation prefers the surrounding font when that font covers it.
 
-Paragraphs are greedily wrapped at explicit whitespace opportunities. Oversize unbreakable segments fall back to Unicode scalar boundaries. Each final visual line is then resolved with FriBidi and shaped with HarfBuzz, so line-level BiDi ordering is computed after the wrap decision. Layout records retain global UTF-8 source ranges.
+Paragraphs are retained as first-class semantic objects with exact source byte ranges and Unicode. Visual wrapping consumes break opportunities separately from that text. Default whitespace opportunities are available for space-delimited scripts, while callers can supply UTF-8 byte offsets from ICU4X, a Khmer segmenter, or another language-aware boundary provider. Oversize unbreakable segments currently fall back to Unicode scalar boundaries. Each final visual line is then resolved with FriBidi and shaped with HarfBuzz, so line-level BiDi ordering is computed after the wrap decision. Layout records retain global UTF-8 source ranges.
 
-Soft wrapping does not add Unicode to `LogicalPdfUnit`; it only assigns page, baseline, and X geometry. This is a deliberate semantic invariant even though several third-party extractors still synthesize newline characters from visual line geometry.
+Soft wrapping does not add Unicode to `LogicalPdfUnit` or `LogicalParagraph`; it only assigns page, baseline, and X geometry. `LayoutDocument::logical_text()` reconstructs hard source paragraph delimiters but never visual wraps or page boundaries. This is a deliberate semantic invariant even though several third-party extractors still synthesize newline characters from visual line geometry.
 
 Pagination uses fixed page metrics and line height in the current milestone. Paragraph shaping, fallback, and tagging can cross physical page boundaries. Full UAX #14 line breaking, language-aware hyphenation, justification, vertical text, and advanced paragraph spacing are not implemented yet.

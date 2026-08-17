@@ -9,7 +9,9 @@
       "mixed-bidi": "known-fail",
       "multifont-inline": "pass",
       "multifont-layout": "known-fail",
-      "multifont-multipage": "known-fail"
+      "multifont-multipage": "known-fail",
+      "khmer-paragraph-natural": "known-fail",
+      "khmer-paragraph-multipage": "known-fail"
     },
     "mupdf": {
       "khmer": "pass",
@@ -18,7 +20,9 @@
       "mixed-bidi": "known-fail",
       "multifont-inline": "pass",
       "multifont-layout": "known-fail",
-      "multifont-multipage": "known-fail"
+      "multifont-multipage": "known-fail",
+      "khmer-paragraph-natural": "known-fail",
+      "khmer-paragraph-multipage": "known-fail"
     },
     "pdfium": {
       "khmer": "pass",
@@ -27,7 +31,9 @@
       "mixed-bidi": "known-fail",
       "multifont-inline": "pass",
       "multifont-layout": "known-fail",
-      "multifont-multipage": "known-fail"
+      "multifont-multipage": "known-fail",
+      "khmer-paragraph-natural": "known-fail",
+      "khmer-paragraph-multipage": "known-fail"
     },
     "pdfjs": {
       "khmer": "known-fail",
@@ -36,7 +42,9 @@
       "mixed-bidi": "known-fail",
       "multifont-inline": "known-fail",
       "multifont-layout": "known-fail",
-      "multifont-multipage": "known-fail"
+      "multifont-multipage": "known-fail",
+      "khmer-paragraph-natural": "pass",
+      "khmer-paragraph-multipage": "pass"
     }
   }
 }
