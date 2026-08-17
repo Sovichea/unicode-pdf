@@ -4,6 +4,7 @@ All notable changes to this project will be documented here.
 
 ## Unreleased
 
+- Added a public externally shaped-text adapter that groups glyphs by exact UTF-8 source range, restores logical order, preserves glyph-less source intervals, and rejects ambiguous overlapping ranges.
 - Added first-class compiler-owned logical paragraphs with exact UTF-8 source ranges and hard-newline reconstruction independent from soft visual wrapping.
 - Added external UTF-8 byte-offset line-break opportunities so ICU4X, Khmer segmentation, or another boundary provider can drive wrapping without inserting Unicode into source text.
 - Changed Tagged PDF hierarchy to `StructTreeRoot -> Document -> P -> Span -> MCID` and added exact paragraph `/ActualText` on `/P` structure elements by default for layout PDFs.

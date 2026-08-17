@@ -122,6 +122,15 @@ The public crate defines the safe `TextShaper` contract. The default backend is 
 
 Both adapters shape an in-memory font, retain UTF-8 byte cluster offsets, accumulate visual pen positions, then convert the result into `LogicalPdfUnit` records in source order. `Document::finish_with` also lets advanced applications provide their own shaper and BiDi resolver without changing the PDF model.
 
+Producers that already shape text can use `logical_units_from_external_glyphs`
+instead. Each external glyph supplies its exact UTF-8 source range and
+positioned geometry. Identical ranges become one logical unit, while uncovered
+source intervals become zero-glyph units so default-ignorable or otherwise
+glyph-less text remains part of the semantic string. Partially overlapping
+ranges are rejected because they do not define unambiguous Unicode ownership.
+The resulting units are sorted by source range; their glyph positions remain in
+the producer's visual coordinate system.
+
 ## 11. Current TrueType synthesis scope
 
 The Rust synthesizer currently targets horizontal `glyf`-based TrueType fonts. It appends one reusable composite glyph per unique CID entry and keeps the original component glyphs. It does not yet subset unused base glyphs, support CFF/CFF2 outlines, TrueType collections, variable-font instance materialization, or vertical writing.

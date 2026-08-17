@@ -11,6 +11,7 @@
 pub mod bidi;
 pub mod core;
 pub mod document;
+pub mod external;
 pub mod font;
 pub mod layout;
 pub mod pdf;
@@ -22,6 +23,7 @@ pub use core::{
     TextDirection,
 };
 pub use document::{render_text, Document, Error, Font, PdfOutput};
+pub use external::{logical_units_from_external_glyphs, ExternalGlyph, ExternalTextError};
 pub use font::{
     synthesize_truetype_composites, Cid, CidAllocator, FontCoverage, FontError,
     SynthesizedTrueTypeFont,
