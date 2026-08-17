@@ -6,7 +6,6 @@ from __future__ import annotations
 import argparse
 import base64
 import json
-import shutil
 from pathlib import Path
 
 TEXT_LAYER_CSS = r"""
@@ -47,19 +46,6 @@ html, body { margin: 0; padding: 0; background: #ddd; }
 .textLayer .markedContent { display: contents; }
 ::selection { background: rgb(116 151 215 / 0.72); }
 """
-
-
-def discover_executable(browser: str) -> str | None:
-    names = (
-        ["chromium", "chromium-browser", "google-chrome", "google-chrome-stable"]
-        if browser == "chromium"
-        else ["firefox", "firefox-esr"]
-    )
-    for name in names:
-        found = shutil.which(name)
-        if found:
-            return found
-    return None
 
 
 def image_data_uri(path: Path | None) -> str | None:
@@ -263,7 +249,11 @@ def main() -> int:
     parser.add_argument("--page-image", type=Path)
     args = parser.parse_args()
 
-    executable = args.executable or discover_executable(args.browser)
+    # Playwright browsers are patched and version-matched to the installed
+    # Playwright package. In particular, Playwright Firefox cannot be replaced
+    # transparently by a system/branded Firefox executable. Only override the
+    # managed browser when the caller explicitly requests an executable.
+    executable = args.executable
     result = run_probe(
         pdfjs_main=args.pdfjs_main,
         text_content=json.loads(args.content.read_text(encoding="utf-8")),

@@ -124,7 +124,7 @@ python conformance/run_pdfjs_typsastra.py \
   --check-baseline
 ```
 
-Add `--screenshots` to retain before/after browser selection images. The harness also supports `--browser firefox` when a Playwright Firefox executable is available.
+Add `--screenshots` to retain before/after browser selection images. The harness also supports `--browser firefox`; by default it launches the Firefox build managed by Playwright. Use `--browser-executable` only when intentionally testing a compatible custom browser build.
 
 ## PDFium generated-character diagnosis
 
