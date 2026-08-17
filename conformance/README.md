@@ -75,3 +75,25 @@ The current layout fixtures intentionally cover three different questions:
 - `multifont-multipage`: the same model across five physical pages, primarily guarding pagination, page-local MCIDs, font resources, and reader stability.
 
 Soft line breaks are not normalized away by the conformance harness. This is intentional: the Unicode preservation contract says visual wrapping should not become semantic whitespace. The known-fail baseline keeps that interoperability gap visible rather than hiding it in comparison code.
+
+## Typsastra PDF.js browser selection
+
+`run_geometry.py` measures reader text boxes, but Typsastra needs the actual browser text layer to behave correctly. `run_pdfjs_typsastra.py` therefore performs a separate end-to-end PDF.js compatibility test:
+
+1. generate the mixed-font PDF and compiler `GeometryIndex`;
+2. copy and patch `pdfjs-dist` with `integrations/pdfjs/apply_typsastra_patch.py`;
+3. extract stock and `preserveLogicalText` TextContent;
+4. render PDF.js's real `TextLayer` in a browser through Playwright;
+5. create DOM `Range` selections for Khmer, Devanagari, cross-font, and full-line cases;
+6. compare `Selection.toString()` and `Range.getClientRects()` against source Unicode and compiler geometry.
+
+Run it with:
+
+```bash
+python conformance/run_pdfjs_typsastra.py \
+  --pdfjs-dist /path/to/pdfjs-dist \
+  --browser chromium \
+  --check-baseline
+```
+
+Add `--screenshots` to retain before/after browser selection images. The harness also supports `--browser firefox` when a Playwright Firefox executable is available.

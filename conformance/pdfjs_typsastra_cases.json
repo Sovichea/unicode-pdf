@@ -1,0 +1,29 @@
+{
+  "fixture": "fixtures/multifont-inline.txt",
+  "cases": [
+    {
+      "name": "khmer-word",
+      "needle": "កម្ពុជា"
+    },
+    {
+      "name": "khmer-cluster",
+      "needle": "ខ្ញុំ"
+    },
+    {
+      "name": "khmer-run",
+      "needle": "កម្ពុជា ខ្ញុំ"
+    },
+    {
+      "name": "devanagari-word",
+      "needle": "हिन्दी"
+    },
+    {
+      "name": "cross-font",
+      "needle": "English កម្ពុជា ខ្ញុំ हिन्दी"
+    },
+    {
+      "name": "full-line",
+      "needle": "Fallback: English កម្ពុជា ខ្ញុំ हिन्दी क्षेत्र."
+    }
+  ]
+}

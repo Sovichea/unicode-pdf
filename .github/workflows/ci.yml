@@ -43,7 +43,7 @@ jobs:
             poppler-utils
       - name: Install pinned reader bindings
         run: |
-          python -m pip install PyMuPDF==1.26.7 pypdfium2==5.8.0
+          python -m pip install PyMuPDF==1.26.7 pypdfium2==5.8.0 playwright==1.55.0
           npm install --prefix target/conformance-node --no-save pdfjs-dist@6.2.108
       - name: Test conformance harness
         run: python -m unittest discover -s conformance -p 'test_*.py'
@@ -59,6 +59,22 @@ jobs:
             --pdfjs-dist target/conformance-node/node_modules/pdfjs-dist \
             --out target/geometry-conformance \
             --check-baseline
+      - name: Install Playwright browsers for PDF.js DOM selection
+        run: python -m playwright install --with-deps chromium firefox
+      - name: Typsastra PDF.js selection conformance (Chromium)
+        run: |
+          python conformance/run_pdfjs_typsastra.py \
+            --pdfjs-dist target/conformance-node/node_modules/pdfjs-dist \
+            --out target/pdfjs-typsastra-chromium \
+            --browser chromium \
+            --check-baseline
+      - name: Typsastra PDF.js selection conformance (Firefox)
+        run: |
+          python conformance/run_pdfjs_typsastra.py \
+            --pdfjs-dist target/conformance-node/node_modules/pdfjs-dist \
+            --out target/pdfjs-typsastra-firefox \
+            --browser firefox \
+            --check-baseline
       - name: Upload conformance report
         if: always()
         uses: actions/upload-artifact@v4
@@ -73,3 +89,7 @@ jobs:
             target/geometry-conformance/results.json
             target/geometry-conformance/*.geometry.json
             target/geometry-conformance/*.pdfjs.json
+            target/pdfjs-typsastra-chromium/RESULTS.md
+            target/pdfjs-typsastra-chromium/results.json
+            target/pdfjs-typsastra-firefox/RESULTS.md
+            target/pdfjs-typsastra-firefox/results.json

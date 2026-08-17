@@ -14,6 +14,9 @@ All notable changes to this project will be documented here.
 - Added a manual clipboard comparison tool and Acrobat/Preview/browser release checklist.
 - Added a pinned GitHub Actions conformance job and report artifacts.
 - Confirmed that MuPDF 1.26.12 extracts the current Arabic fixture exactly from the same PDF that Poppler, PDFium, and stock PDF.js alter.
+- Added compiler-side source-to-selection geometry indexing and cross-reader geometry baselines.
+- Added an opt-in Typsastra `preserveLogicalText` patch for `pdfjs-dist` 6.2.108 plus real-browser DOM Range/Selection conformance tests.
+- Fixed PDF.js logical-mode width accounting by preserving explicit whitespace, avoiding a second BiDi reorder, isolating multi-codepoint logical CIDs, and scaling TextLayer items to their exact PDF widths.
 
 ### Added
 
@@ -49,5 +52,3 @@ All notable changes to this project will be documented here.
 - Synthetic cluster glyph PDF proof-of-concept.
 - PDF.js interoperability investigation patch and validation notes.
 - Apache-2.0 license and contribution guide.
-
-- Add compiler-side source-to-selection geometry indexing and cross-reader geometry conformance baselines for Poppler, MuPDF, PDFium, and PDF.js.

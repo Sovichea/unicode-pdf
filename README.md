@@ -12,7 +12,7 @@ This repository grew out of reproducible failures involving Khmer PDF copy/paste
 
 **Early alpha / research prototype.** The Rust workspace now includes backend-neutral shaping and BiDi traits, runtime-loaded system HarfBuzz and FriBidi adapters, CID planning, authoritative `/ToUnicode`, TrueType composite-glyph synthesis, Type0/CIDFontType2 PDF emission, and Tagged PDF semantic structure.
 
-The `emit-pdf` development command performs `UTF-8 -> FriBidi directional spans -> HarfBuzz logical units -> synthetic glyph font -> tagged Type0 PDF`. The newer `emit-layout-pdf` path adds real `cmap`-based multi-font fallback, paragraph wrapping, multi-line layout, pagination, multiple embedded Type0 fonts, and page-local tagged-PDF MCIDs. A cross-reader conformance harness exercises generated PDFs through Poppler, MuPDF, PDFium, and stock PDF.js. Khmer and Devanagari remain exact in Poppler, MuPDF, and PDFium for the established single-font fixtures. Multi-font inline Khmer/Latin/Devanagari now passes exactly in Poppler, MuPDF, and PDFium. Arabic and soft-wrapped paragraph extraction still expose reader-specific reconstruction behavior.
+The `emit-pdf` development command performs `UTF-8 -> FriBidi directional spans -> HarfBuzz logical units -> synthetic glyph font -> tagged Type0 PDF`. The newer `emit-layout-pdf` path adds real `cmap`-based multi-font fallback, paragraph wrapping, multi-line layout, pagination, multiple embedded Type0 fonts, and page-local tagged-PDF MCIDs. A cross-reader conformance harness exercises generated PDFs through Poppler, MuPDF, PDFium, and stock PDF.js. Khmer and Devanagari remain exact in Poppler, MuPDF, and PDFium for the established single-font fixtures. Multi-font inline Khmer/Latin/Devanagari now passes exactly in Poppler, MuPDF, and PDFium. For Typsastra's PDF.js-based live preview, the repository now also includes an opt-in `preserveLogicalText` compatibility patch and a real-browser DOM Range/Selection conformance harness. Arabic and soft-wrapped paragraph extraction still expose reader-specific reconstruction behavior.
 
 ## Goals
 
@@ -106,7 +106,8 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the design in detail.
 - `unicode-pdf-cli`: inspection, shaping, synthetic-font validation, and end-to-end PDF generation commands.
 - `fixtures`: source strings used for conformance tests.
 - `experiments`: proof-of-concept synthetic font/PDF generator and PDF.js investigation artifacts.
-- `conformance`: cross-reader extraction harness, regression baseline, PDF.js adapter, and manual clipboard checklist.
+- `conformance`: cross-reader extraction, selection geometry, and real-browser PDF.js TextLayer/Range harnesses.
+- `integrations/pdfjs`: the opt-in Typsastra `preserveLogicalText` patch for `pdfjs-dist` 6.2.108 and integration notes.
 
 ## Build
 
@@ -203,6 +204,37 @@ scripts/run-conformance.sh --check-baseline
 
 See [conformance/README.md](conformance/README.md) and [the cross-reader milestone report](docs/MILESTONE_CROSS_READER_CONFORMANCE.md).
 
+### Typsastra PDF.js selection mode
+
+Typsastra can keep its existing PDF.js preview architecture by using the included opt-in logical-text mode:
+
+```bash
+python integrations/pdfjs/apply_typsastra_patch.py \
+  --input node_modules/pdfjs-dist \
+  --output vendor/pdfjs-dist-typsastra
+```
+
+Then feed the text layer with:
+
+```js
+page.streamTextContent({
+  includeMarkedContent: true,
+  disableNormalization: true,
+  preserveLogicalText: true,
+});
+```
+
+The compatibility harness tests actual browser `Range`/`Selection` geometry rather than only `getTextContent()`:
+
+```bash
+python conformance/run_pdfjs_typsastra.py \
+  --pdfjs-dist /path/to/pdfjs-dist \
+  --browser chromium \
+  --check-baseline
+```
+
+See [integrations/pdfjs/README.md](integrations/pdfjs/README.md) and [the PDF.js compatibility milestone](docs/MILESTONE_PDFJS_TYPSASTRA_COMPATIBILITY.md).
+
 ## Run the proof-of-concept experiment
 
 The experiment demonstrates the key production idea with real HarfBuzz shaping and synthetic composite TrueType glyphs.
@@ -271,7 +303,7 @@ The intended conformance matrix includes:
 
 The generated PDF should be standards-oriented and should not require a custom viewer for correct copy/paste. This is the target, not yet a claim of universal interoperability. In particular, Arabic extraction still exposes reader-side BiDi/mark-reordering differences in the current prototype.
 
-The included PDF.js patch is an investigation artifact. It documents reader behavior that was discovered during validation; it is not intended to become a required dependency of generated PDFs.
+Generated PDFs remain standards-oriented and do not require a custom viewer for their PDF semantics. Typsastra nevertheless has a product-specific requirement to make browser selection follow those semantics in its existing PDF.js preview. The repository therefore carries an opt-in PDF.js compatibility mode for compiler-authored logical-CID PDFs; normal PDF.js behavior stays the default for arbitrary documents.
 
 ## Roadmap
 
@@ -283,10 +315,11 @@ The included PDF.js patch is an investigation artifact. It documents reader beha
 6. Add semantic run segmentation, `/ActualText`, MCIDs, `/Lang`, and a Tagged PDF structure tree. **Implemented.**
 7. Add cross-reader extraction conformance tests. **Implemented.**
 8. Add `cmap`-based font fallback, paragraph wrapping, and pagination. **Implemented.**
-9. Add selection/highlight geometry tests for mixed BiDi and wrapped multi-font content. **Next milestone.**
-10. Add optional source-span sidecar/index support for editors and typesetters.
-11. Add real font subsetting, CFF/CFF2/color-font support, and Unicode line-breaking/hyphenation.
-12. Integrate the engine into real PDF-producing applications.
+9. Add selection/highlight geometry tests for mixed BiDi and wrapped multi-font content. **Implemented.**
+10. Add Typsastra PDF.js logical-text mode and browser DOM selection conformance. **Implemented for PDF.js 6.2.108; Chromium validated, Firefox CI/manual validation pending.**
+11. Add optional source-span sidecar/index support for editors and typesetters.
+12. Add real font subsetting, CFF/CFF2/color-font support, and Unicode line-breaking/hyphenation.
+13. Integrate the engine into real PDF-producing applications.
 
 ## Contributing
 

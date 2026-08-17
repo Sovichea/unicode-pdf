@@ -253,7 +253,11 @@ fn dump_layout_geometry(
     let layout = layout_document(&text, &font_set, &shaper, &bidi, options)
         .map_err(|error| error.to_string())?;
     let geometry = GeometryIndex::from_layout(&layout);
-    let mut json = String::from("{\n  \"page_count\": ");
+    let mut json = String::from("{\n  \"page_width\": ");
+    let _ = write!(json, "{:.4}", options.page_width);
+    json.push_str(",\n  \"page_height\": ");
+    let _ = write!(json, "{:.4}", options.page_height);
+    json.push_str(",\n  \"page_count\": ");
     json.push_str(&layout.page_count.to_string());
     json.push_str(",\n  \"line_count\": ");
     json.push_str(&geometry.lines.len().to_string());

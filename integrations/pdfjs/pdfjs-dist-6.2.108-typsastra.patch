@@ -1,0 +1,162 @@
+--- a/build/pdf.mjs
++++ b/build/pdf.mjs
+@@ -15028,6 +15028,9 @@
+     textDiv.setAttribute("role", "presentation");
+     textDiv.textContent = geom.str;
+     textDiv.dir = geom.dir;
++    if (geom.preserveLogicalText) {
++      this.#rootContainer.dataset.preserveLogicalText = "true";
++    }
+     if (this.#fontInspectorEnabled) {
+       textDiv.dataset.fontName = style.fontSubstitutionLoadedName || geom.fontName;
+     }
+@@ -15035,7 +15038,7 @@
+       textDivProperties.angle = angle * (180 / Math.PI);
+     }
+     let shouldScaleText = false;
+-    if (geom.str.length > 1) {
++    if (geom.preserveLogicalText || geom.str.length > 1) {
+       shouldScaleText = true;
+     } else if (geom.str !== " " && geom.transform[0] !== geom.transform[3]) {
+       const absScaleX = Math.abs(geom.transform[0]),
+@@ -15796,14 +15799,16 @@
+   }
+   streamTextContent({
+     includeMarkedContent = false,
+-    disableNormalization = false
++    disableNormalization = false,
++    preserveLogicalText = false
+   } = {}) {
+     const TEXT_CONTENT_CHUNK_SIZE = 100;
+     return this._transport.messageHandler.sendWithStream("GetTextContent", {
+       pageId: this.#pagesMapper.getPageId(this._pageIndex + 1) - 1,
+       pageIndex: this._pageIndex,
+       includeMarkedContent: includeMarkedContent === true,
+-      disableNormalization: disableNormalization === true
++      disableNormalization: disableNormalization === true,
++      preserveLogicalText: preserveLogicalText === true
+     }, {
+       highWaterMark: TEXT_CONTENT_CHUNK_SIZE,
+       size(textContent) {
+--- a/build/pdf.worker.mjs
++++ b/build/pdf.worker.mjs
+@@ -17384,7 +17384,7 @@
+   }
+   return -1;
+ }
+-const SpecialCharRegExp = /^(\s)|(\p{Mn})|(\p{Cf})$/u;
++const SpecialCharRegExp = /^(\s)$|^(\p{Mn})$|^(\p{Cf})$/u;
+ const CategoryCache = new Map();
+ function getCharUnicodeCategory(char) {
+   const cachedCategory = CategoryCache.get(char);
+@@ -35678,9 +35678,13 @@
+     markedContentData = null,
+     disableNormalization = false,
+     keepWhiteSpace = false,
++    preserveLogicalText = false,
+     prevRefs = null,
+     intersector = null
+   }) {
++    if (preserveLogicalText) {
++      keepWhiteSpace = true;
++    }
+     if (stream.isAsync) {
+       const bytes = await stream.asyncGetBytes();
+       if (bytes) {
+@@ -35855,13 +35859,14 @@
+     }
+     function runBidiTransform(textChunk) {
+       let text = textChunk.str.join("");
+-      if (!disableNormalization) {
++      if (!disableNormalization && !preserveLogicalText) {
+         text = normalizeUnicode(text);
+       }
+       const bidiResult = bidi(text, -1, textChunk.vertical);
+       return {
+-        str: bidiResult.str,
++        str: preserveLogicalText ? text : bidiResult.str,
+         dir: bidiResult.dir,
++        preserveLogicalText,
+         width: Math.abs(textChunk.totalWidth),
+         height: Math.abs(textChunk.totalHeight),
+         transform: textChunk.transform,
+@@ -36076,6 +36081,10 @@
+           }
+           continue;
+         }
++        const isolateLogicalGlyph = preserveLogicalText && Array.from(glyph.unicode).length > 1;
++        if (isolateLogicalGlyph) {
++          flushTextContentItem();
++        }
+         const textChunk = ensureTextContentItem();
+         if (category.isZeroWidthDiacritic) {
+           scaledDim = 0;
+@@ -36110,6 +36119,9 @@
+             textState.translateTextMatrix(0, -charSpacing);
+           }
+         }
++        if (isolateLogicalGlyph) {
++          flushTextContentItem();
++        }
+       }
+     }
+     function appendEOL() {
+@@ -36379,6 +36391,7 @@
+                 markedContentData,
+                 disableNormalization,
+                 keepWhiteSpace,
++                preserveLogicalText,
+                 prevRefs: seenRefs
+               }).then(function () {
+                 if (!sinkWrapper.enqueueInvoked) {
+@@ -59382,6 +59395,7 @@
+     task,
+     includeMarkedContent,
+     disableNormalization,
++    preserveLogicalText = false,
+     sink,
+     intersector = null
+   }) {
+@@ -59397,6 +59411,7 @@
+       resources,
+       includeMarkedContent,
+       disableNormalization,
++      preserveLogicalText,
+       sink,
+       viewBox: this.view,
+       lang,
+@@ -64772,7 +64787,8 @@
+       pageId,
+       pageIndex,
+       includeMarkedContent,
+-      disableNormalization
++      disableNormalization,
++      preserveLogicalText
+     }, sink) {
+       pdfManager.getPage(pageId).then(function (page) {
+         const task = new WorkerTask("GetTextContent: page " + pageIndex);
+@@ -64783,7 +64799,8 @@
+           task,
+           sink,
+           includeMarkedContent,
+-          disableNormalization
++          disableNormalization,
++          preserveLogicalText
+         }).then(() => {
+           if (start) {
+             info(`${task.name}; time=${Date.now() - start}ms`);
+--- a/web/viewer.mjs
++++ b/web/viewer.mjs
+@@ -13377,7 +13377,11 @@
+     div.addEventListener("copy", event => {
+       if (!this.#enablePermissions) {
+         const selection = document.getSelection();
+-        event.clipboardData.setData("text/plain", removeNullCharacters(normalizeUnicode(selection.toString())));
++        const selectedText = selection.toString();
++        event.clipboardData.setData(
++          "text/plain",
++          removeNullCharacters(this.div.dataset.preserveLogicalText === "true" ? selectedText : normalizeUnicode(selectedText))
++        );
+       }
+       stopEvent(event);
+     }, opts);

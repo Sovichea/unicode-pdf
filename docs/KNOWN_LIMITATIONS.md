@@ -16,13 +16,16 @@ The automated matrix now covers Poppler, MuPDF, PDFium, and PDF.js extraction AP
 
 ## PDF.js behavior
 
-The research patch in `experiments/pdfjs-logical-text-mode.patch` documents three PDF.js behaviors discovered during testing:
+Stock PDF.js 6.2.108 still has selection/extraction assumptions that conflict with compiler-authored logical CIDs:
 
-- multi-codepoint `/ToUnicode` values containing combining or format characters can affect width classification;
+- a multi-codepoint `/ToUnicode` value containing `Mn`/`Cf` can be misclassified for width accounting;
 - PDF.js performs its own BiDi transformation during text extraction;
-- PDF.js can discard explicit whitespace and infer spaces geometrically.
+- PDF.js can discard explicit whitespace and infer spaces geometrically;
+- combining multiple complex CIDs into one TextLayer span can compress browser selection geometry.
 
-The patch is diagnostic. Generated PDFs should not depend on a custom PDF.js fork for basic Unicode correctness.
+For Typsastra, where PDF.js is the existing preview architecture, `integrations/pdfjs` now contains an opt-in `preserveLogicalText` compatibility mode. In the Chromium DOM-selection harness it restores exact copied Khmer/Devanagari text and approximately 99.9-100% selection-rectangle overlap for the focused complex-script cases. The original user-visible problem was observed in Firefox, but a Firefox binary could not be installed in this sandbox because outbound DNS is unavailable. The harness supports Firefox and CI/manual Firefox validation remains required before claiming a verified Firefox release result.
+
+The generated PDF itself remains standards-oriented. The PDF.js patch is a viewer integration needed by Typsastra, not a semantic requirement for readers such as Acrobat or MuPDF.
 
 ## Font synthesis
 
