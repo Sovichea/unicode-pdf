@@ -23,6 +23,13 @@ python integrations/pdfjs/apply_typsastra_patch.py \
 The script refuses versions other than 6.2.108. The equivalent reviewable
 unified diff is [`pdfjs-dist-6.2.108-typsastra.patch`](pdfjs-dist-6.2.108-typsastra.patch).
 
+The npm `pdfjs-dist` package does not include the complete generic viewer
+application (`web/viewer.mjs`). In that package layout, the script patches the
+core/worker/TextLayer code and skips the optional viewer clipboard hook. A full
+PDF.js generic distribution that contains `web/viewer.mjs` receives the
+clipboard hook as well. The conformance TextLayer test only requires the npm
+package layout.
+
 ## Enable logical-text mode
 
 When Typsastra builds the text layer directly:

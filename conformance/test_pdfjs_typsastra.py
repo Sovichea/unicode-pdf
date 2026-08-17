@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -56,6 +57,28 @@ class PdfJsTypsastraTests(unittest.TestCase):
         self.assertIn("preserveLogicalText = false", patched)
         self.assertIn("preserveLogicalText: preserveLogicalText === true", patched)
         self.assertIn("geom.preserveLogicalText || geom.str.length > 1", patched)
+
+    def test_accepts_npm_pdfjs_dist_without_full_viewer(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "build").mkdir()
+            (root / "build/pdf.mjs").write_text("", encoding="utf-8")
+            (root / "build/pdf.worker.mjs").write_text("", encoding="utf-8")
+            main, worker, viewer = PATCH.distribution_paths(root)
+            self.assertEqual(main, root / "build/pdf.mjs")
+            self.assertEqual(worker, root / "build/pdf.worker.mjs")
+            self.assertIsNone(viewer)
+
+    def test_detects_optional_full_viewer(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            (root / "build").mkdir()
+            (root / "web").mkdir()
+            (root / "build/pdf.mjs").write_text("", encoding="utf-8")
+            (root / "build/pdf.worker.mjs").write_text("", encoding="utf-8")
+            (root / "web/viewer.mjs").write_text("", encoding="utf-8")
+            _, _, viewer = PATCH.distribution_paths(root)
+            self.assertEqual(viewer, root / "web/viewer.mjs")
 
     def test_patch_viewer_preserves_logical_clipboard(self):
         source = """      const selection = document.getSelection();

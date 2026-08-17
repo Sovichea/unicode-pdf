@@ -22,14 +22,22 @@ FONT_FAMILIES = [
 
 
 def run(cmd: list[str]) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
+    result = subprocess.run(
         cmd,
         cwd=ROOT,
-        check=True,
+        check=False,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
     )
+    if result.returncode != 0:
+        rendered = " ".join(str(part) for part in cmd)
+        raise RuntimeError(
+            f"command failed with exit code {result.returncode}: {rendered}\n"
+            f"stdout:\n{result.stdout}\n"
+            f"stderr:\n{result.stderr}"
+        )
+    return result
 
 
 def font_for_family(family: str) -> str:

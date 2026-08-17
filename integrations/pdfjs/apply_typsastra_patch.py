@@ -269,16 +269,22 @@ def patch_viewer(text: str) -> str:
     )
 
 
+def distribution_paths(source: Path) -> tuple[Path, Path, Path | None]:
+    """Returns required PDF.js files and an optional full-viewer module."""
+    main_source = source / "build" / "pdf.mjs"
+    worker_source = source / "build" / "pdf.worker.mjs"
+    viewer_source = source / "web" / "viewer.mjs"
+    if not main_source.is_file() or not worker_source.is_file():
+        raise PatchError("input does not look like a pdfjs-dist directory")
+    return main_source, worker_source, viewer_source if viewer_source.is_file() else None
+
+
 def apply_patch(source: Path, output: Path) -> str:
     source = source.resolve()
     output = output.resolve()
     if source == output:
         raise PatchError("input and output directories must be different")
-    main_source = source / "build" / "pdf.mjs"
-    worker_source = source / "build" / "pdf.worker.mjs"
-    viewer_source = source / "web" / "viewer.mjs"
-    if not main_source.is_file() or not worker_source.is_file() or not viewer_source.is_file():
-        raise PatchError("input does not look like a complete pdfjs-dist directory")
+    main_source, worker_source, viewer_source = distribution_paths(source)
 
     main_text = main_source.read_text(encoding="utf-8")
     version = detect_version(main_text)
@@ -293,14 +299,15 @@ def apply_patch(source: Path, output: Path) -> str:
 
     output_main = output / "build" / "pdf.mjs"
     output_worker = output / "build" / "pdf.worker.mjs"
-    output_viewer = output / "web" / "viewer.mjs"
     output_main.write_text(patch_main(main_text), encoding="utf-8")
     output_worker.write_text(
         patch_worker(worker_source.read_text(encoding="utf-8")), encoding="utf-8"
     )
-    output_viewer.write_text(
-        patch_viewer(viewer_source.read_text(encoding="utf-8")), encoding="utf-8"
-    )
+    if viewer_source is not None:
+        output_viewer = output / "web" / "viewer.mjs"
+        output_viewer.write_text(
+            patch_viewer(viewer_source.read_text(encoding="utf-8")), encoding="utf-8"
+        )
     return version
 
 
