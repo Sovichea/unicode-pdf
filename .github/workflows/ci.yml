@@ -97,6 +97,11 @@ jobs:
           python conformance/check_paragraph_semantics.py \
             --out target/conformance \
             --json target/conformance/paragraph-semantics.json
+      - name: Khmer visual backend parity
+        run: |
+          python conformance/visual_backend_parity.py \
+            --out target/visual-backend-parity \
+            --min-similarity 0.995
       - name: Selection geometry conformance
         run: |
           python conformance/run_geometry.py \
@@ -131,6 +136,9 @@ jobs:
             target/conformance/paragraph-semantics.json
             target/conformance/*.pdf
             target/conformance/extracted/**
+            target/visual-backend-parity/results.json
+            target/visual-backend-parity/*.pdf
+            target/visual-backend-parity/*.ppm
             target/geometry-conformance/RESULTS.md
             target/geometry-conformance/results.json
             target/geometry-conformance/*.geometry.json
