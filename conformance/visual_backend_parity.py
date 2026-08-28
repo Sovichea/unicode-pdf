@@ -58,23 +58,23 @@ def emit_pdf(
     run(command, env=env)
 
 
-def render_first_page(pdf: Path, output_prefix: Path, dpi: int) -> Path:
+def render_pages(pdf: Path, output_prefix: Path, dpi: int) -> list[Path]:
     run(
         [
             "pdftoppm",
-            "-f",
-            "1",
-            "-singlefile",
             "-r",
             str(dpi),
             str(pdf),
             str(output_prefix),
         ]
     )
-    output = output_prefix.with_suffix(".ppm")
-    if not output.is_file():
-        raise RuntimeError(f"pdftoppm did not create {output}")
-    return output
+    pages = sorted(
+        output_prefix.parent.glob(f"{output_prefix.name}-*.ppm"),
+        key=lambda path: int(path.stem.rsplit("-", 1)[1]),
+    )
+    if not pages:
+        raise RuntimeError(f"pdftoppm did not create pages for {pdf}")
+    return pages
 
 
 def read_ppm(path: Path) -> tuple[int, int, bytes]:
@@ -137,7 +137,61 @@ def compare_rasters(reference: Path, candidate: Path) -> dict[str, float | int]:
         "mean_absolute_channel_error": absolute_error / channel_count,
         "max_channel_error": max_channel_error,
         "similarity": similarity,
+        "absolute_channel_error": absolute_error,
+        "channel_count": channel_count,
     }
+
+
+def compare_page_sets(
+    reference_pages: list[Path], candidate_pages: list[Path]
+) -> tuple[list[dict[str, float | int]], dict[str, float | int]]:
+    if len(reference_pages) != len(candidate_pages):
+        raise RuntimeError(
+            "rendered page counts differ: "
+            f"reference={len(reference_pages)}, candidate={len(candidate_pages)}"
+        )
+
+    page_metrics: list[dict[str, float | int]] = []
+    total_absolute_error = 0
+    total_channel_count = 0
+    total_pixels = 0
+    total_changed_pixels = 0
+    max_channel_error = 0
+
+    for page_number, (reference, candidate) in enumerate(
+        zip(reference_pages, candidate_pages), start=1
+    ):
+        metrics = compare_rasters(reference, candidate)
+        page_metrics.append(
+            {
+                "page": page_number,
+                **{
+                    key: value
+                    for key, value in metrics.items()
+                    if key not in {"absolute_channel_error", "channel_count"}
+                },
+            }
+        )
+        total_absolute_error += int(metrics["absolute_channel_error"])
+        total_channel_count += int(metrics["channel_count"])
+        total_pixels += int(metrics["pixel_count"])
+        total_changed_pixels += int(metrics["changed_pixels"])
+        max_channel_error = max(max_channel_error, int(metrics["max_channel_error"]))
+
+    similarity = 1.0 - total_absolute_error / (total_channel_count * 255)
+    summary = {
+        "page_count": len(page_metrics),
+        "pixel_count": total_pixels,
+        "changed_pixels": total_changed_pixels,
+        "changed_pixel_fraction": total_changed_pixels / total_pixels,
+        "mean_absolute_channel_error": total_absolute_error / total_channel_count,
+        "max_channel_error": max_channel_error,
+        "similarity": similarity,
+        "minimum_page_similarity": min(
+            float(page["similarity"]) for page in page_metrics
+        ),
+    }
+    return page_metrics, summary
 
 
 def parse_args() -> argparse.Namespace:
@@ -177,9 +231,9 @@ def main() -> int:
         features=None,
     )
 
-    reference_ppm = render_first_page(reference_pdf, out / "system-harfbuzz", args.dpi)
-    candidate_ppm = render_first_page(candidate_pdf, out / "harfrust", args.dpi)
-    metrics = compare_rasters(reference_ppm, candidate_ppm)
+    reference_pages = render_pages(reference_pdf, out / "system-harfbuzz", args.dpi)
+    candidate_pages = render_pages(candidate_pdf, out / "harfrust", args.dpi)
+    pages, metrics = compare_page_sets(reference_pages, candidate_pages)
     result = {
         "fixture": str(fixture),
         "font": str(font),
@@ -188,6 +242,7 @@ def main() -> int:
         "reference_backend": "system-harfbuzz+unicode-bidi",
         "candidate_backend": "harfrust+unicode-bidi",
         "minimum_similarity": args.min_similarity,
+        "pages": pages,
         **metrics,
     }
     (out / "results.json").write_text(
@@ -195,9 +250,10 @@ def main() -> int:
     )
 
     print(json.dumps(result, indent=2, sort_keys=True))
-    if float(metrics["similarity"]) < args.min_similarity:
+    if float(metrics["minimum_page_similarity"]) < args.min_similarity:
         print(
-            f"visual similarity {metrics['similarity']:.6f} is below "
+            "minimum per-page visual similarity "
+            f"{metrics['minimum_page_similarity']:.6f} is below "
             f"required {args.min_similarity:.6f}",
             file=sys.stderr,
         )
