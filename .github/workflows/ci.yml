@@ -127,6 +127,11 @@ jobs:
               --clip-top-rows 15 \
               --whole-page-pass 0.995 \
               --ink-reject 0.90
+            python conformance/visual_metric_scale_sensitivity.py \
+              --dir target/visual-backend-parity/$dir \
+              --scale 1.005 \
+              --whole-page-pass 0.995 \
+              --ink-reject 0.90
           done
       - name: Selection geometry conformance
         run: |
