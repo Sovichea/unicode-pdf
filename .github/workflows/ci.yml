@@ -107,6 +107,12 @@ jobs:
             --fixture fixtures/khmer-paragraph-natural.txt \
             --out target/visual-backend-parity/paragraph \
             --min-similarity 0.995
+          for dir in short paragraph; do
+            python conformance/visual_region_gate.py \
+              --dir target/visual-backend-parity/$dir \
+              --regions 10 \
+              --min-region-ink-iou 0.90
+          done
       - name: Calibrate Khmer visual metric sensitivity
         run: |
           for dir in short paragraph; do
@@ -139,6 +145,11 @@ jobs:
               --whole-page-pass 0.995 \
               --page-ink-pass 0.90 \
               --local-ink-reject 0.90
+            python conformance/visual_region_gate.py \
+              --dir target/visual-backend-parity/$dir \
+              --candidate-prefix sensitivity-local-0p100-x+2/system-harfbuzz-local-0p100-x+2 \
+              --regions 10 \
+              --expect-below 0.90
           done
       - name: Selection geometry conformance
         run: |
