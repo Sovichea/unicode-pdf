@@ -132,6 +132,13 @@ jobs:
               --scale 1.005 \
               --whole-page-pass 0.995 \
               --ink-reject 0.90
+            python conformance/visual_metric_local_sensitivity.py \
+              --dir target/visual-backend-parity/$dir \
+              --fraction 0.10 \
+              --shift-x 2 \
+              --whole-page-pass 0.995 \
+              --page-ink-pass 0.90 \
+              --local-ink-reject 0.90
           done
       - name: Selection geometry conformance
         run: |
