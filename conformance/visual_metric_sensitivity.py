@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Calibrate the Khmer visual gate against a deliberate rendered displacement.
+"""Calibrate the Khmer visual gate against deliberate rendered displacement.
 
 The parity gate's whole-page RGB score can be dominated by blank page area. This
 probe shifts the actual reference Khmer raster by a small number of pixels and
@@ -49,6 +49,13 @@ def numbered_pages(directory: Path, prefix: str) -> list[Path]:
     )
 
 
+def displacement_tag(dx: int, dy: int) -> str:
+    def axis(value: int) -> str:
+        return f"m{abs(value)}" if value < 0 else f"p{value}"
+
+    return f"x{axis(dx)}-y{axis(dy)}"
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--dir", required=True)
@@ -67,11 +74,12 @@ def main() -> int:
     if not reference_pages:
         raise RuntimeError(f"no reference rasters found in {directory}")
 
-    shifted_dir = directory / "sensitivity-shift"
+    tag = displacement_tag(args.shift_x, args.shift_y)
+    shifted_dir = directory / f"sensitivity-shift-{tag}"
     shifted_pages: list[Path] = []
     for page in reference_pages:
         destination = shifted_dir / page.name.replace(
-            "system-harfbuzz", "system-harfbuzz-shifted"
+            "system-harfbuzz", f"system-harfbuzz-shifted-{tag}"
         )
         shift_raster(page, destination, args.shift_x, args.shift_y)
         shifted_pages.append(destination)
@@ -87,7 +95,7 @@ def main() -> int:
         "pages": pages,
         **summary,
     }
-    output = directory / "sensitivity-results.json"
+    output = directory / f"sensitivity-results-{tag}.json"
     output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(json.dumps(result, indent=2, sort_keys=True))
 
