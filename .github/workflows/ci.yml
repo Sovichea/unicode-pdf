@@ -107,6 +107,18 @@ jobs:
             --fixture fixtures/khmer-paragraph-natural.txt \
             --out target/visual-backend-parity/paragraph \
             --min-similarity 0.995
+      - name: Calibrate Khmer visual metric sensitivity
+        run: |
+          python conformance/visual_metric_sensitivity.py \
+            --dir target/visual-backend-parity/short \
+            --shift-x 2 \
+            --whole-page-pass 0.995 \
+            --ink-reject 0.90
+          python conformance/visual_metric_sensitivity.py \
+            --dir target/visual-backend-parity/paragraph \
+            --shift-x 2 \
+            --whole-page-pass 0.995 \
+            --ink-reject 0.90
       - name: Selection geometry conformance
         run: |
           python conformance/run_geometry.py \
