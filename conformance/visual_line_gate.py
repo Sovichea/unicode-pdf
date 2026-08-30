@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Gate Khmer raster parity on text-line-local rendered-ink overlap.
+"""Gate Khmer raster parity on text-line-local rendered-ink fidelity.
 
 The page-grid gate catches localized defects, but its row boundaries are tied to
 the page ink box rather than to actual text lines. This companion gate detects
 horizontal ink bands first, then subdivides each band into equal-width segments.
-That makes the visual threshold sensitive to a defect confined to one rendered
-Khmer line without letting correct lines above or below dilute the result.
+Each populated segment is checked both for binary rendered-ink overlap and for
+RGB similarity over the union of rendered ink. The second metric catches visible
+stroke-weight or tone regressions that leave the occupied-pixel mask unchanged.
 """
 
 from __future__ import annotations
@@ -90,7 +91,12 @@ def compare_line_segments(
         max_blank_row_gap=max_blank_row_gap,
     )
     if not bands:
-        return {"line_count": 0, "segments": [], "minimum_line_segment_ink_iou": 1.0}
+        return {
+            "line_count": 0,
+            "segments": [],
+            "minimum_line_segment_ink_iou": 1.0,
+            "minimum_line_segment_ink_similarity": 1.0,
+        }
 
     segments: list[dict[str, int | float]] = []
     for line_index, (top, bottom) in enumerate(bands, start=1):
@@ -117,6 +123,7 @@ def compare_line_segments(
             union = 0
             reference_ink = 0
             candidate_ink = 0
+            ink_absolute_error = 0
             for y in range(top, bottom + 1):
                 for x in range(segment_left, segment_right + 1):
                     offset = (y * width + x) * 3
@@ -126,9 +133,16 @@ def compare_line_segments(
                     candidate_ink += int(cand_ink)
                     intersection += int(ref_ink and cand_ink)
                     union += int(ref_ink or cand_ink)
+                    if ref_ink or cand_ink:
+                        ink_absolute_error += sum(
+                            abs(reference[offset + channel] - candidate[offset + channel])
+                            for channel in range(3)
+                        )
 
             if union < min_segment_ink_pixels:
                 continue
+            ink_iou = intersection / union
+            ink_similarity = 1.0 - ink_absolute_error / (union * 3 * 255)
             segments.append(
                 {
                     "line": line_index,
@@ -141,7 +155,8 @@ def compare_line_segments(
                     "candidate_ink_pixels": candidate_ink,
                     "ink_intersection_pixels": intersection,
                     "ink_union_pixels": union,
-                    "ink_iou": intersection / union,
+                    "ink_iou": ink_iou,
+                    "ink_similarity": ink_similarity,
                 }
             )
 
@@ -152,6 +167,9 @@ def compare_line_segments(
         "line_count": len(bands),
         "segments": segments,
         "minimum_line_segment_ink_iou": min(float(segment["ink_iou"]) for segment in segments),
+        "minimum_line_segment_ink_similarity": min(
+            float(segment["ink_similarity"]) for segment in segments
+        ),
     }
 
 
@@ -165,11 +183,21 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--min-segment-ink-pixels", type=int, default=64)
     parser.add_argument("--max-blank-row-gap", type=int, default=2)
     parser.add_argument("--min-line-segment-ink-iou", type=float, default=0.90)
+    parser.add_argument("--min-line-segment-ink-similarity", type=float, default=0.90)
     parser.add_argument(
         "--expect-below",
         type=float,
         default=None,
         help="Calibration mode: pass only when a line segment falls below this IoU.",
+    )
+    parser.add_argument(
+        "--expect-similarity-below",
+        type=float,
+        default=None,
+        help=(
+            "Tone calibration mode: require binary IoU to stay above the normal gate "
+            "while at least one line segment falls below this ink similarity."
+        ),
     )
     return parser.parse_args()
 
@@ -182,6 +210,8 @@ def main() -> int:
         raise RuntimeError("--min-segment-ink-pixels must be positive")
     if args.max_blank_row_gap < 0:
         raise RuntimeError("--max-blank-row-gap must be non-negative")
+    if args.expect_below is not None and args.expect_similarity_below is not None:
+        raise RuntimeError("choose only one calibration expectation")
 
     directory = Path(args.dir)
     reference_pages = numbered_pages(directory, args.reference_prefix)
@@ -212,7 +242,10 @@ def main() -> int:
             }
         )
 
-    minimum = min(float(page["minimum_line_segment_ink_iou"]) for page in pages)
+    minimum_iou = min(float(page["minimum_line_segment_ink_iou"]) for page in pages)
+    minimum_similarity = min(
+        float(page["minimum_line_segment_ink_similarity"]) for page in pages
+    )
     result = {
         "reference_prefix": args.reference_prefix,
         "candidate_prefix": args.candidate_prefix,
@@ -221,30 +254,65 @@ def main() -> int:
         "min_segment_ink_pixels": args.min_segment_ink_pixels,
         "max_blank_row_gap": args.max_blank_row_gap,
         "min_line_segment_ink_iou": args.min_line_segment_ink_iou,
+        "min_line_segment_ink_similarity": args.min_line_segment_ink_similarity,
         "expect_below": args.expect_below,
-        "minimum_line_segment_ink_iou": minimum,
+        "expect_similarity_below": args.expect_similarity_below,
+        "minimum_line_segment_ink_iou": minimum_iou,
+        "minimum_line_segment_ink_similarity": minimum_similarity,
         "pages": pages,
     }
-    output_name = "line-calibration.json" if args.expect_below is not None else "line-results.json"
+    if args.expect_similarity_below is not None:
+        output_name = "line-tone-calibration.json"
+    elif args.expect_below is not None:
+        output_name = "line-calibration.json"
+    else:
+        output_name = "line-results.json"
     (directory / output_name).write_text(
         json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
     print(json.dumps(result, indent=2, sort_keys=True))
 
     if args.expect_below is not None:
-        if minimum >= args.expect_below:
+        if minimum_iou >= args.expect_below:
             print(
                 "line-aware calibration failed to detect deliberate distortion: "
-                f"minimum_line_segment_ink_iou={minimum:.6f}, expected < {args.expect_below:.6f}",
+                f"minimum_line_segment_ink_iou={minimum_iou:.6f}, expected < {args.expect_below:.6f}",
                 file=sys.stderr,
             )
             return 1
         return 0
 
-    if minimum < args.min_line_segment_ink_iou:
+    if args.expect_similarity_below is not None:
+        if minimum_iou < args.min_line_segment_ink_iou:
+            print(
+                "tone calibration changed the binary ink mask too much: "
+                f"minimum_line_segment_ink_iou={minimum_iou:.6f}, required >= "
+                f"{args.min_line_segment_ink_iou:.6f}",
+                file=sys.stderr,
+            )
+            return 1
+        if minimum_similarity >= args.expect_similarity_below:
+            print(
+                "line-local tone calibration failed to detect deliberate distortion: "
+                f"minimum_line_segment_ink_similarity={minimum_similarity:.6f}, expected < "
+                f"{args.expect_similarity_below:.6f}",
+                file=sys.stderr,
+            )
+            return 1
+        return 0
+
+    if minimum_iou < args.min_line_segment_ink_iou:
         print(
             "minimum line-local rendered-ink IoU "
-            f"{minimum:.6f} is below required {args.min_line_segment_ink_iou:.6f}",
+            f"{minimum_iou:.6f} is below required {args.min_line_segment_ink_iou:.6f}",
+            file=sys.stderr,
+        )
+        return 1
+    if minimum_similarity < args.min_line_segment_ink_similarity:
+        print(
+            "minimum line-local rendered-ink similarity "
+            f"{minimum_similarity:.6f} is below required "
+            f"{args.min_line_segment_ink_similarity:.6f}",
             file=sys.stderr,
         )
         return 1
