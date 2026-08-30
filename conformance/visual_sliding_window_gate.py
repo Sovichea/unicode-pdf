@@ -126,6 +126,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--min-window-ink-iou", type=float, default=0.90)
     parser.add_argument("--min-window-ink-similarity", type=float, default=0.90)
     parser.add_argument("--expect-below", type=float, default=None)
+    parser.add_argument("--expect-similarity-below", type=float, default=None)
     return parser.parse_args()
 
 
@@ -183,20 +184,32 @@ def main() -> int:
         "minimum_window_ink_similarity": minimum_similarity,
         "pages": pages,
     }
-    output_name = "sliding-window-calibration.json" if args.expect_below is not None else "sliding-window-results.json"
+    calibration = args.expect_below is not None or args.expect_similarity_below is not None
+    output_name = "sliding-window-calibration.json" if calibration else "sliding-window-results.json"
     (directory / output_name).write_text(
         json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
     print(json.dumps(result, indent=2, sort_keys=True))
 
-    if args.expect_below is not None:
-        if minimum_iou >= args.expect_below:
-            print(
-                "sliding-window calibration failed to detect deliberate distortion: "
-                f"minimum_window_ink_iou={minimum_iou:.6f}, expected < {args.expect_below:.6f}",
-                file=sys.stderr,
-            )
-            return 1
+    if args.expect_below is not None and minimum_iou >= args.expect_below:
+        print(
+            "sliding-window calibration failed to detect deliberate distortion: "
+            f"minimum_window_ink_iou={minimum_iou:.6f}, expected < {args.expect_below:.6f}",
+            file=sys.stderr,
+        )
+        return 1
+    if (
+        args.expect_similarity_below is not None
+        and minimum_similarity >= args.expect_similarity_below
+    ):
+        print(
+            "sliding-window calibration failed to detect deliberate tone distortion: "
+            f"minimum_window_ink_similarity={minimum_similarity:.6f}, expected < "
+            f"{args.expect_similarity_below:.6f}",
+            file=sys.stderr,
+        )
+        return 1
+    if calibration:
         return 0
 
     if minimum_iou < args.min_window_ink_iou:
