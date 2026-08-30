@@ -1,0 +1,66 @@
+name: Khmer sliding-window visual calibration
+
+on:
+  push:
+    branches:
+      - test/khmer-visual-backend-parity
+  pull_request:
+
+jobs:
+  sliding-window-visual:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.97.1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install visual reference dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            fontconfig \
+            fonts-noto-core \
+            libfribidi0 \
+            libharfbuzz0b \
+            poppler-utils
+      - name: Build Khmer visual baselines
+        run: |
+          python conformance/visual_backend_parity.py \
+            --fixture fixtures/khmer.txt \
+            --out target/visual-backend-parity/short \
+            --min-similarity 0.995
+          python conformance/visual_backend_parity.py \
+            --fixture fixtures/khmer-paragraph-natural.txt \
+            --out target/visual-backend-parity/paragraph \
+            --min-similarity 0.995
+      - name: Gate overlapping line-local Khmer windows
+        run: |
+          for dir in short paragraph; do
+            python conformance/visual_sliding_window_gate.py \
+              --dir target/visual-backend-parity/$dir \
+              --window-fraction 0.05 \
+              --stride-fraction 0.025 \
+              --min-window-ink-iou 0.90 \
+              --min-window-ink-similarity 0.90
+          done
+      - name: Calibrate five-percent line-local displacement
+        run: |
+          for dir in short paragraph; do
+            python conformance/visual_metric_line_sensitivity.py \
+              --dir target/visual-backend-parity/$dir \
+              --width-fraction 0.05 \
+              --shift-x 2
+            python conformance/visual_sliding_window_gate.py \
+              --dir target/visual-backend-parity/$dir \
+              --candidate-prefix sensitivity-line-w0p050-x+2/system-harfbuzz-line-w0p050-x+2 \
+              --window-fraction 0.05 \
+              --stride-fraction 0.025 \
+              --expect-below 0.90
+          done
+      - name: Upload sliding-window evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: khmer-sliding-window-visual
+          path: target/visual-backend-parity/**
