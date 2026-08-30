@@ -118,6 +118,24 @@ jobs:
               --segments 10 \
               --min-line-segment-ink-iou 0.90 \
               --min-line-segment-ink-similarity 0.90
+            python conformance/visual_multidpi_gate.py \
+              --dir target/visual-backend-parity/$dir \
+              --dpis 96,288 \
+              --min-similarity 0.995 \
+              --min-ink-iou 0.90 \
+              --min-ink-similarity 0.90
+            for dpi in 96 288; do
+              python conformance/visual_region_gate.py \
+                --dir target/visual-backend-parity/$dir/dpi-$dpi \
+                --regions 10 \
+                --rows 4 \
+                --min-region-ink-iou 0.90
+              python conformance/visual_line_gate.py \
+                --dir target/visual-backend-parity/$dir/dpi-$dpi \
+                --segments 10 \
+                --min-line-segment-ink-iou 0.90 \
+                --min-line-segment-ink-similarity 0.90
+            done
           done
       - name: Calibrate Khmer visual metric sensitivity
         run: |
