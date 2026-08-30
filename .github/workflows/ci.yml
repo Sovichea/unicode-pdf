@@ -113,6 +113,10 @@ jobs:
               --regions 10 \
               --rows 4 \
               --min-region-ink-iou 0.90
+            python conformance/visual_line_gate.py \
+              --dir target/visual-backend-parity/$dir \
+              --segments 10 \
+              --min-line-segment-ink-iou 0.90
           done
       - name: Calibrate Khmer visual metric sensitivity
         run: |
@@ -166,6 +170,15 @@ jobs:
               --candidate-prefix sensitivity-cell-w0p100-h0p250-xp0p00-yp0p80-x+2/system-harfbuzz-cell-w0p100-h0p250-xp0p00-yp0p80-x+2 \
               --regions 10 \
               --rows 4 \
+              --expect-below 0.90
+            python conformance/visual_metric_line_sensitivity.py \
+              --dir target/visual-backend-parity/$dir \
+              --width-fraction 0.10 \
+              --shift-x 2
+            python conformance/visual_line_gate.py \
+              --dir target/visual-backend-parity/$dir \
+              --candidate-prefix sensitivity-line-w0p100-x+2/system-harfbuzz-line-w0p100-x+2 \
+              --segments 10 \
               --expect-below 0.90
           done
       - name: Selection geometry conformance
