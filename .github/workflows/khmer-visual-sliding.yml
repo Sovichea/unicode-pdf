@@ -23,6 +23,7 @@ jobs:
             fonts-noto-core \
             libfribidi0 \
             libharfbuzz0b \
+            mupdf-tools \
             poppler-utils
       - name: Build Khmer visual baselines
         run: |
@@ -34,6 +35,16 @@ jobs:
             --fixture fixtures/khmer-paragraph-natural.txt \
             --out target/visual-backend-parity/paragraph \
             --min-similarity 0.995
+      - name: Verify parity with independent MuPDF rasterizer
+        run: |
+          for dir in short paragraph; do
+            python conformance/visual_cross_renderer_gate.py \
+              --dir target/visual-backend-parity/$dir \
+              --dpi 144 \
+              --min-similarity 0.90 \
+              --min-ink-iou 0.90 \
+              --min-ink-similarity 0.90
+          done
       - name: Gate overlapping line-local Khmer windows
         run: |
           for dir in short paragraph; do
