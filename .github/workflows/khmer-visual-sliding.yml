@@ -63,6 +63,24 @@ jobs:
               --stride-fraction 0.025 \
               --max-window-metric-delta 0.001
           done
+      - name: Calibrate localized renderer-only defect sensitivity
+        run: |
+          for dir in short paragraph; do
+            python conformance/visual_renderer_window_sensitivity.py \
+              --dir target/visual-backend-parity/$dir \
+              --dpi 144 \
+              --width-fraction 0.025 \
+              --x-position 0.4875 \
+              --tone 160
+            python conformance/visual_renderer_window_consistency_gate.py \
+              --dir target/visual-backend-parity/$dir \
+              --dpi 144 \
+              --mutool-dir-name mutool-144dpi-renderer-sensitivity-w0p025-xp0p49-v160 \
+              --window-fraction 0.05 \
+              --stride-fraction 0.025 \
+              --expect-delta-above 0.05 \
+              --output target/visual-backend-parity/$dir/renderer-window-sensitivity-result.json
+          done
       - name: Gate overlapping line-local Khmer windows
         run: |
           for dir in short paragraph; do
