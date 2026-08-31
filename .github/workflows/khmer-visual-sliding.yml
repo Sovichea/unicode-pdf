@@ -45,6 +45,14 @@ jobs:
               --min-ink-iou 0.90 \
               --min-ink-similarity 0.90
           done
+      - name: Check renderer disagreement is backend-invariant
+        run: |
+          for dir in short paragraph; do
+            python conformance/visual_renderer_consistency_gate.py \
+              --dir target/visual-backend-parity/$dir \
+              --dpi 144 \
+              --max-metric-delta 0.001
+          done
       - name: Gate overlapping line-local Khmer windows
         run: |
           for dir in short paragraph; do
