@@ -43,6 +43,12 @@ jobs:
               --stride-fraction 0.025 \
               --min-window-ink-iou 0.90 \
               --min-window-ink-similarity 0.90
+            python conformance/visual_multithreshold_gate.py \
+              --dir target/visual-backend-parity/$dir \
+              --ink-thresholds 64,128,192,250 \
+              --window-fraction 0.05 \
+              --stride-fraction 0.025 \
+              --min-window-ink-iou 0.90
           done
       - name: Calibrate five-percent line-local displacement
         run: |
@@ -73,6 +79,13 @@ jobs:
               --stride-fraction 0.025 \
               --min-window-ink-iou 0.90 \
               --expect-similarity-below 0.90
+            python conformance/visual_multithreshold_gate.py \
+              --dir target/visual-backend-parity/$dir \
+              --candidate-prefix sensitivity-tone-w0p025-xp0p49-v160/system-harfbuzz-tone-w0p025-xp0p49-v160 \
+              --ink-thresholds 64,128,192,250 \
+              --window-fraction 0.05 \
+              --stride-fraction 0.025 \
+              --expect-below 0.90
           done
       - name: Upload sliding-window evidence
         if: always()
