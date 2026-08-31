@@ -4,7 +4,9 @@
 Whole-page renderer-consistency summaries can hide a backend-specific discrepancy in
 a small glyph neighborhood. This gate compares Poppler-versus-MuPDF disagreement
 inside the same overlapping line windows for the reference and candidate shaping
-backends, then limits the maximum per-window metric delta.
+backends, then limits the maximum per-window metric delta. Calibration runs can
+instead require a deliberately injected backend-specific renderer defect to exceed
+a minimum delta.
 """
 
 from __future__ import annotations
@@ -33,12 +35,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--dpi", type=int, default=144)
     parser.add_argument("--reference-prefix", default="system-harfbuzz")
     parser.add_argument("--candidate-prefix", default="harfrust")
+    parser.add_argument("--mutool-dir-name")
     parser.add_argument("--window-fraction", type=float, default=0.05)
     parser.add_argument("--stride-fraction", type=float, default=0.025)
     parser.add_argument("--ink-threshold", type=int, default=250)
     parser.add_argument("--min-window-ink-pixels", type=int, default=32)
     parser.add_argument("--max-blank-row-gap", type=int, default=2)
     parser.add_argument("--max-window-metric-delta", type=float, default=0.001)
+    parser.add_argument("--expect-delta-above", type=float)
     parser.add_argument("--output", type=Path)
     return parser.parse_args()
 
@@ -77,9 +81,12 @@ def main() -> int:
         raise RuntimeError("--stride-fraction must be in (0, window-fraction]")
     if args.max_window_metric_delta < 0.0:
         raise RuntimeError("--max-window-metric-delta must be non-negative")
+    if args.expect_delta_above is not None and args.expect_delta_above < 0.0:
+        raise RuntimeError("--expect-delta-above must be non-negative")
 
     directory = args.dir
-    mutool_dir = directory / f"mutool-{args.dpi}dpi"
+    mutool_dir_name = args.mutool_dir_name or f"mutool-{args.dpi}dpi"
+    mutool_dir = directory / mutool_dir_name
     if not mutool_dir.is_dir():
         raise RuntimeError(
             f"missing MuPDF raster directory {mutool_dir}; run visual_cross_renderer_gate.py first"
@@ -165,12 +172,14 @@ def main() -> int:
     result = {
         "comparison": "localized Poppler-versus-MuPDF disagreement by shaping backend",
         "dpi": args.dpi,
+        "mutool_dir_name": mutool_dir_name,
         "ink_threshold": args.ink_threshold,
         "window_fraction": args.window_fraction,
         "stride_fraction": args.stride_fraction,
         "reference_prefix": args.reference_prefix,
         "candidate_prefix": args.candidate_prefix,
         "max_window_metric_delta": args.max_window_metric_delta,
+        "expect_delta_above": args.expect_delta_above,
         "compared_windows": compared_windows,
         "maximum_window_metric_delta": maximum_delta,
         "pages": page_results,
@@ -178,6 +187,17 @@ def main() -> int:
     output = args.output or directory / f"renderer-window-consistency-{args.dpi}dpi.json"
     output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(json.dumps(result, indent=2, sort_keys=True))
+
+    if args.expect_delta_above is not None:
+        if maximum_delta >= args.expect_delta_above:
+            return 0
+        print(
+            "localized renderer consistency calibration failed: maximum backend-specific "
+            f"window metric delta {maximum_delta:.9f} < expected "
+            f"{args.expect_delta_above:.9f}",
+            file=sys.stderr,
+        )
+        return 1
 
     if maximum_delta > args.max_window_metric_delta:
         print(
