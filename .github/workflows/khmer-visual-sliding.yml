@@ -53,6 +53,16 @@ jobs:
               --dpi 144 \
               --max-metric-delta 0.001
           done
+      - name: Check localized renderer disagreement is backend-invariant
+        run: |
+          for dir in short paragraph; do
+            python conformance/visual_renderer_window_consistency_gate.py \
+              --dir target/visual-backend-parity/$dir \
+              --dpi 144 \
+              --window-fraction 0.05 \
+              --stride-fraction 0.025 \
+              --max-window-metric-delta 0.001
+          done
       - name: Gate overlapping line-local Khmer windows
         run: |
           for dir in short paragraph; do
