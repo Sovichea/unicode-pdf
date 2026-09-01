@@ -40,19 +40,26 @@ jobs:
             python conformance/visual_vertical_profile_gate.py \
               --dir target/vertical-profile/$dir \
               --min-line-profile-similarity 0.90
+            python conformance/visual_vertical_window_profile_gate.py \
+              --dir target/vertical-profile/$dir \
+              --window-fraction 0.05 \
+              --stride-fraction 0.025 \
+              --min-window-profile-similarity 0.90
           done
-      - name: Calibrate upper-zone vertical mark displacement
+      - name: Calibrate localized upper-zone vertical mark displacement
         run: |
           for dir in short paragraph; do
             python conformance/visual_metric_vertical_sensitivity.py \
               --dir target/vertical-profile/$dir \
               --zone-fraction 0.25 \
               --shift-y 2
-            python conformance/visual_vertical_profile_gate.py \
+            python conformance/visual_vertical_window_profile_gate.py \
               --dir target/vertical-profile/$dir \
               --candidate-prefix sensitivity-vertical-z0p250-y+2/system-harfbuzz-vertical-z0p250-y+2 \
+              --window-fraction 0.05 \
+              --stride-fraction 0.025 \
               --expect-below 0.90 \
-              --output target/vertical-profile/$dir/vertical-profile-displacement-calibration.json
+              --output target/vertical-profile/$dir/vertical-window-profile-displacement-calibration.json
           done
       - name: Upload vertical-profile evidence
         if: always()
