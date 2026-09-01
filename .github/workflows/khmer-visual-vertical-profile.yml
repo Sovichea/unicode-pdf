@@ -62,6 +62,14 @@ jobs:
                 --stride-fraction 0.025 \
                 --min-zone-profile-similarity 0.90 \
                 --output target/vertical-profile/$dir/horizontal-zone-window-$zone-results.json
+              python conformance/visual_mark_centroid_window_gate.py \
+                --dir target/vertical-profile/$dir \
+                --zone $zone \
+                --zone-fraction 0.25 \
+                --window-fraction 0.05 \
+                --stride-fraction 0.025 \
+                --max-centroid-displacement 0.50 \
+                --output target/vertical-profile/$dir/mark-centroid-window-$zone-results.json
             done
           done
       - name: Calibrate localized upper-zone vertical mark displacement
@@ -88,6 +96,15 @@ jobs:
               --stride-fraction 0.025 \
               --expect-below 0.90 \
               --output target/vertical-profile/$dir/vertical-zone-window-upper-displacement-calibration.json
+            python conformance/visual_mark_centroid_window_gate.py \
+              --dir target/vertical-profile/$dir \
+              --candidate-prefix sensitivity-vertical-z0p250-y+2/system-harfbuzz-vertical-z0p250-y+2 \
+              --zone upper \
+              --zone-fraction 0.25 \
+              --window-fraction 0.05 \
+              --stride-fraction 0.025 \
+              --expect-above 0.75 \
+              --output target/vertical-profile/$dir/mark-centroid-upper-vertical-displacement-calibration.json
           done
       - name: Calibrate localized lower-zone vertical mark displacement
         run: |
@@ -106,6 +123,15 @@ jobs:
               --stride-fraction 0.025 \
               --expect-below 0.90 \
               --output target/vertical-profile/$dir/vertical-zone-window-lower-displacement-calibration.json
+            python conformance/visual_mark_centroid_window_gate.py \
+              --dir target/vertical-profile/$dir \
+              --candidate-prefix sensitivity-vertical-lower-z0p250-y-2/system-harfbuzz-vertical-lower-z0p250-y-2 \
+              --zone lower \
+              --zone-fraction 0.25 \
+              --window-fraction 0.05 \
+              --stride-fraction 0.025 \
+              --expect-above 0.75 \
+              --output target/vertical-profile/$dir/mark-centroid-lower-vertical-displacement-calibration.json
           done
       - name: Calibrate localized horizontal mark displacement
         run: |
@@ -124,6 +150,15 @@ jobs:
               --stride-fraction 0.025 \
               --expect-below 0.90 \
               --output target/vertical-profile/$dir/horizontal-zone-window-upper-displacement-calibration.json
+            python conformance/visual_mark_centroid_window_gate.py \
+              --dir target/vertical-profile/$dir \
+              --candidate-prefix sensitivity-horizontal-z0p250-x+2/system-harfbuzz-horizontal-z0p250-x+2 \
+              --zone upper \
+              --zone-fraction 0.25 \
+              --window-fraction 0.05 \
+              --stride-fraction 0.025 \
+              --expect-above 0.75 \
+              --output target/vertical-profile/$dir/mark-centroid-upper-horizontal-displacement-calibration.json
             python conformance/visual_metric_horizontal_sensitivity.py \
               --dir target/vertical-profile/$dir \
               --zone lower \
@@ -138,6 +173,15 @@ jobs:
               --stride-fraction 0.025 \
               --expect-below 0.90 \
               --output target/vertical-profile/$dir/horizontal-zone-window-lower-displacement-calibration.json
+            python conformance/visual_mark_centroid_window_gate.py \
+              --dir target/vertical-profile/$dir \
+              --candidate-prefix sensitivity-horizontal-lower-z0p250-x-2/system-harfbuzz-horizontal-lower-z0p250-x-2 \
+              --zone lower \
+              --zone-fraction 0.25 \
+              --window-fraction 0.05 \
+              --stride-fraction 0.025 \
+              --expect-above 0.75 \
+              --output target/vertical-profile/$dir/mark-centroid-lower-horizontal-displacement-calibration.json
           done
       - name: Upload vertical-profile evidence
         if: always()
