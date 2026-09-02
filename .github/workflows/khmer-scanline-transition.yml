@@ -1,0 +1,53 @@
+name: Khmer scanline-transition visual calibration
+
+on:
+  push:
+    branches:
+      - test/khmer-visual-backend-parity
+  pull_request:
+
+jobs:
+  scanline-transition-visual:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.97.1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install visual reference dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fontconfig fonts-noto-core libfribidi0 libharfbuzz0b poppler-utils
+      - name: Build Khmer visual baselines
+        run: |
+          python conformance/visual_backend_parity.py --fixture fixtures/khmer.txt --out target/scanline-transition/short --min-similarity 0.995
+          python conformance/visual_backend_parity.py --fixture fixtures/khmer-paragraph-natural.txt --out target/scanline-transition/paragraph --min-similarity 0.995
+      - name: Gate clean Khmer scanline structure
+        run: |
+          for dir in short paragraph; do
+            python conformance/visual_scanline_transition_window_gate.py \
+              --dir target/scanline-transition/$dir \
+              --window-fraction 0.05 --stride-fraction 0.025 \
+              --min-similarity 0.90 \
+              --output target/scanline-transition/$dir/scanline-transition-clean-results.json
+          done
+      - name: Calibrate area-preserving Khmer outline defect
+        run: |
+          for dir in short paragraph; do
+            python conformance/visual_metric_boundary_sensitivity.py \
+              --dir target/scanline-transition/$dir \
+              --min-component-pixels 30 --max-component-pixels 600
+            python conformance/visual_scanline_transition_window_gate.py \
+              --dir target/scanline-transition/$dir \
+              --candidate-prefix sensitivity-boundary-area-preserving/system-harfbuzz-boundary-area-preserving \
+              --window-fraction 0.05 --stride-fraction 0.025 \
+              --expect-below 0.90 \
+              --output target/scanline-transition/$dir/scanline-transition-calibration.json
+          done
+      - name: Upload scanline-transition evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: khmer-scanline-transition-visual
+          path: target/scanline-transition/**
