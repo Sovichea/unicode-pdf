@@ -1,0 +1,81 @@
+name: Khmer mark-topology visual calibration
+
+on:
+  push:
+    branches:
+      - test/khmer-visual-backend-parity
+  pull_request:
+
+jobs:
+  mark-topology-visual:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.97.1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install visual reference dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            fontconfig \
+            fonts-noto-core \
+            libfribidi0 \
+            libharfbuzz0b \
+            poppler-utils
+      - name: Build Khmer visual baselines
+        run: |
+          python conformance/visual_backend_parity.py \
+            --fixture fixtures/khmer.txt \
+            --out target/mark-topology/short \
+            --min-similarity 0.995
+          python conformance/visual_backend_parity.py \
+            --fixture fixtures/khmer-paragraph-natural.txt \
+            --out target/mark-topology/paragraph \
+            --min-similarity 0.995
+      - name: Gate clean Khmer mark topology
+        run: |
+          for dir in short paragraph; do
+            for zone in upper lower; do
+              python conformance/visual_mark_topology_window_gate.py \
+                --dir target/mark-topology/$dir \
+                --zone $zone \
+                --zone-fraction 0.25 \
+                --window-fraction 0.05 \
+                --stride-fraction 0.025 \
+                --min-component-pixels 4 \
+                --max-component-delta 0 \
+                --output target/mark-topology/$dir/mark-topology-window-$zone-results.json
+            done
+          done
+      - name: Calibrate missing Khmer detached marks
+        run: |
+          for dir in short paragraph; do
+            for zone in upper lower; do
+              python conformance/visual_metric_mark_topology_sensitivity.py \
+                --dir target/mark-topology/$dir \
+                --zone $zone \
+                --zone-fraction 0.25 \
+                --min-component-pixels 4 \
+                --max-component-pixels 80
+              label="$zone-z0p250"
+              candidate="sensitivity-mark-topology-$label/system-harfbuzz-mark-topology-$label"
+              python conformance/visual_mark_topology_window_gate.py \
+                --dir target/mark-topology/$dir \
+                --candidate-prefix "$candidate" \
+                --zone $zone \
+                --zone-fraction 0.25 \
+                --window-fraction 0.05 \
+                --stride-fraction 0.025 \
+                --min-component-pixels 4 \
+                --expect-above 0.5 \
+                --output target/mark-topology/$dir/mark-topology-$zone-missing-mark-calibration.json
+            done
+          done
+      - name: Upload mark-topology evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: khmer-mark-topology-visual
+          path: target/mark-topology/**
