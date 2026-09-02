@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Gate localized Khmer stroke structure with scanline transition counts.
+"""Gate localized Khmer stroke structure with per-scanline transition counts.
 
-Ink area, component count, counters, centroid and even small boundary displacement
-can miss a local stroke merge/split pattern. This gate counts binary ink/white
-transitions on horizontal and vertical scanlines inside overlapping text windows.
-The score is 1 - normalized transition-count error, keeping 0.90 as the visual
-fidelity threshold.
+Area, connected components, counters and centroid can remain stable while a local
+Khmer stroke opens, closes, merges or splits. For overlapping text-line windows,
+this gate compares ink/white transition counts independently on every horizontal
+row and vertical column. The worst normalized scanline score is used so a small
+structural defect cannot be diluted by unaffected rows or columns.
 """
 
 from __future__ import annotations
@@ -21,6 +21,11 @@ from visual_line_gate import detect_ink_bands, numbered_pages
 
 def transitions(bits: list[bool]) -> int:
     return sum(a != b for a, b in zip(bits, bits[1:]))
+
+
+def pair_similarity(reference_count: int, candidate_count: int) -> float:
+    return max(0.0, 1.0 - abs(reference_count - candidate_count) /
+               max(1, reference_count, candidate_count))
 
 
 def compare_page(reference_path: Path, candidate_path: Path, *, window_fraction: float,
@@ -51,32 +56,27 @@ def compare_page(reference_path: Path, candidate_path: Path, *, window_fraction:
 
         for window_index, wl in enumerate(starts, 1):
             wr = min(right, wl + window_width - 1)
-            totals = []
-            for pixels in (reference, candidate):
-                h = sum(transitions([pixel_is_ink(pixels, (y * width + x) * 3, ink_threshold)
-                                     for x in range(wl, wr + 1)])
-                        for y in range(top, bottom + 1))
-                v = sum(transitions([pixel_is_ink(pixels, (y * width + x) * 3, ink_threshold)
-                                     for y in range(top, bottom + 1)])
-                        for x in range(wl, wr + 1))
-                totals.append((h, v))
-            rh, rv = totals[0]
-            chh, cv = totals[1]
-            denom = max(1, rh + rv, chh + cv)
-            error = abs(rh - chh) + abs(rv - cv)
-            similarity = max(0.0, 1.0 - error / denom)
+            scores: list[float] = []
+            for y in range(top, bottom + 1):
+                ref_count = transitions([pixel_is_ink(reference, (y * width + x) * 3, ink_threshold)
+                                         for x in range(wl, wr + 1)])
+                cand_count = transitions([pixel_is_ink(candidate, (y * width + x) * 3, ink_threshold)
+                                          for x in range(wl, wr + 1)])
+                scores.append(pair_similarity(ref_count, cand_count))
+            for x in range(wl, wr + 1):
+                ref_count = transitions([pixel_is_ink(reference, (y * width + x) * 3, ink_threshold)
+                                         for y in range(top, bottom + 1)])
+                cand_count = transitions([pixel_is_ink(candidate, (y * width + x) * 3, ink_threshold)
+                                          for y in range(top, bottom + 1)])
+                scores.append(pair_similarity(ref_count, cand_count))
             windows.append({"line": line_index, "window": window_index,
                             "left": wl, "right": wr,
-                            "reference_horizontal_transitions": rh,
-                            "candidate_horizontal_transitions": chh,
-                            "reference_vertical_transitions": rv,
-                            "candidate_vertical_transitions": cv,
-                            "scanline_transition_similarity": similarity})
+                            "minimum_scanline_transition_similarity": min(scores)})
 
     if not windows:
         raise RuntimeError("no nonblank line windows were measured")
     return {"line_count": len(bands), "window_count": len(windows),
-            "minimum_scanline_transition_similarity": min(float(w["scanline_transition_similarity"]) for w in windows),
+            "minimum_scanline_transition_similarity": min(float(w["minimum_scanline_transition_similarity"]) for w in windows),
             "windows": windows}
 
 
