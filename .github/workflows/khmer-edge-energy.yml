@@ -37,10 +37,10 @@ jobs:
           for dir in short paragraph; do
             python conformance/visual_metric_blur_sensitivity.py \
               --dir target/edge-energy/$dir \
-              --width-fraction 0.10 --x-position 0.40 --passes 2
+              --width-fraction 0.10 --x-position 0.40 --passes 3
             python conformance/visual_edge_energy_window_gate.py \
               --dir target/edge-energy/$dir \
-              --candidate-prefix sensitivity-blur-w0p100-xp0p40-p2/system-harfbuzz-blur-w0p100-xp0p40-p2 \
+              --candidate-prefix sensitivity-blur-w0p100-xp0p40-p3/system-harfbuzz-blur-w0p100-xp0p40-p3 \
               --window-fraction 0.05 --stride-fraction 0.025 \
               --expect-below 0.90 \
               --output target/edge-energy/$dir/edge-energy-calibration.json
