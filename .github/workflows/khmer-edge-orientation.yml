@@ -1,0 +1,71 @@
+name: Khmer edge-orientation visual calibration
+
+on:
+  push:
+    branches:
+      - test/khmer-visual-backend-parity
+  pull_request:
+
+jobs:
+  edge-orientation-visual:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.97.1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install visual reference dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            fontconfig \
+            fonts-noto-core \
+            libfribidi0 \
+            libharfbuzz0b \
+            poppler-utils
+      - name: Build Khmer visual baselines
+        run: |
+          python conformance/visual_backend_parity.py \
+            --fixture fixtures/khmer.txt \
+            --out target/edge-orientation/short \
+            --min-similarity 0.995
+          python conformance/visual_backend_parity.py \
+            --fixture fixtures/khmer-paragraph-natural.txt \
+            --out target/edge-orientation/paragraph \
+            --min-similarity 0.995
+      - name: Gate clean Khmer edge orientation
+        run: |
+          for dir in short paragraph; do
+            python conformance/visual_edge_orientation_window_gate.py \
+              --dir target/edge-orientation/$dir \
+              --window-fraction 0.025 \
+              --stride-fraction 0.0125 \
+              --edge-threshold 16 \
+              --min-edge-pixels 8 \
+              --min-similarity 0.90 \
+              --output target/edge-orientation/$dir/edge-orientation-clean-results.json
+          done
+      - name: Calibrate area-preserving Khmer contour-direction defect
+        run: |
+          for dir in short paragraph; do
+            python conformance/visual_metric_boundary_sensitivity.py \
+              --dir target/edge-orientation/$dir \
+              --min-component-pixels 30 \
+              --max-component-pixels 600
+            python conformance/visual_edge_orientation_window_gate.py \
+              --dir target/edge-orientation/$dir \
+              --candidate-prefix sensitivity-boundary-area-preserving/system-harfbuzz-boundary-area-preserving \
+              --window-fraction 0.025 \
+              --stride-fraction 0.0125 \
+              --edge-threshold 16 \
+              --min-edge-pixels 8 \
+              --expect-below 0.90 \
+              --output target/edge-orientation/$dir/edge-orientation-calibration.json
+          done
+      - name: Upload edge-orientation evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: khmer-edge-orientation-visual
+          path: target/edge-orientation/**
