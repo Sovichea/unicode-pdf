@@ -39,10 +39,10 @@ jobs:
           for dir in short paragraph; do
             python conformance/visual_edge_orientation_window_gate.py \
               --dir target/edge-orientation/$dir \
-              --window-fraction 0.025 \
-              --stride-fraction 0.0125 \
+              --window-fraction 0.0125 \
+              --stride-fraction 0.00625 \
               --edge-threshold 16 \
-              --min-edge-pixels 8 \
+              --min-edge-pixels 4 \
               --min-similarity 0.90 \
               --output target/edge-orientation/$dir/edge-orientation-clean-results.json
           done
@@ -56,10 +56,10 @@ jobs:
             python conformance/visual_edge_orientation_window_gate.py \
               --dir target/edge-orientation/$dir \
               --candidate-prefix sensitivity-boundary-area-preserving/system-harfbuzz-boundary-area-preserving \
-              --window-fraction 0.025 \
-              --stride-fraction 0.0125 \
+              --window-fraction 0.0125 \
+              --stride-fraction 0.00625 \
               --edge-threshold 16 \
-              --min-edge-pixels 8 \
+              --min-edge-pixels 4 \
               --expect-below 0.90 \
               --output target/edge-orientation/$dir/edge-orientation-calibration.json
           done
