@@ -49,13 +49,14 @@ jobs:
       - name: Calibrate area-preserving Khmer contour-direction defect
         run: |
           for dir in short paragraph; do
-            python conformance/visual_metric_boundary_sensitivity.py \
+            python conformance/visual_metric_orientation_sensitivity.py \
               --dir target/edge-orientation/$dir \
               --min-component-pixels 30 \
-              --max-component-pixels 600
+              --max-component-pixels 600 \
+              --mutation-count 8
             python conformance/visual_edge_orientation_window_gate.py \
               --dir target/edge-orientation/$dir \
-              --candidate-prefix sensitivity-boundary-area-preserving/system-harfbuzz-boundary-area-preserving \
+              --candidate-prefix sensitivity-orientation-area-preserving/system-harfbuzz-orientation-area-preserving \
               --window-fraction 0.0125 \
               --stride-fraction 0.00625 \
               --edge-threshold 16 \
