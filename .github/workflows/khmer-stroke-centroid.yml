@@ -28,7 +28,7 @@ jobs:
           for dir in short paragraph; do
             python conformance/visual_stroke_centroid_window_gate.py \
               --dir target/stroke-centroid/$dir \
-              --window-fraction 0.05 --stride-fraction 0.025 \
+              --window-fraction 0.02 --stride-fraction 0.01 \
               --ink-threshold 250 --min-similarity 0.90 \
               --output target/stroke-centroid/$dir/stroke-centroid-clean-results.json
           done
@@ -41,7 +41,7 @@ jobs:
             python conformance/visual_stroke_centroid_window_gate.py \
               --dir target/stroke-centroid/$dir \
               --candidate-prefix sensitivity-stroke-displacement-w0p100-xp0p40-dx2/system-harfbuzz-stroke-displacement-w0p100-xp0p40-dx2 \
-              --window-fraction 0.05 --stride-fraction 0.025 \
+              --window-fraction 0.02 --stride-fraction 0.01 \
               --ink-threshold 250 --expect-below 0.90 \
               --output target/stroke-centroid/$dir/stroke-centroid-calibration.json
           done
