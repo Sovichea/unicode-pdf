@@ -1,0 +1,73 @@
+name: Khmer font-matrix visual calibration
+
+on:
+  push:
+    branches:
+      - test/khmer-visual-backend-parity
+  pull_request:
+
+jobs:
+  font-matrix-visual:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.97.1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install independent visual renderers and Khmer fonts
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            fontconfig \
+            fonts-noto-core \
+            libfribidi0 \
+            libharfbuzz0b \
+            mupdf-tools \
+            poppler-utils
+      - name: Reject fontconfig substitution
+        run: |
+          if python conformance/visual_backend_parity.py \
+            --fixture fixtures/khmer.txt \
+            --font-family 'Khmer Visual Missing Font' \
+            --out target/font-matrix/missing; then
+            echo 'missing font family was silently substituted' >&2
+            exit 1
+          fi
+      - name: Build visual baselines across Khmer fonts
+        run: |
+          for spec in 'sans|Noto Sans Khmer' 'serif|Noto Serif Khmer'; do
+            key=${spec%%|*}
+            family=${spec#*|}
+            for fixture in short paragraph; do
+              input=fixtures/khmer.txt
+              if [ "$fixture" = paragraph ]; then
+                input=fixtures/khmer-paragraph-natural.txt
+              fi
+              python conformance/visual_backend_parity.py \
+                --fixture "$input" \
+                --font-family "$family" \
+                --out "target/font-matrix/$key/$fixture" \
+                --min-similarity 0.995 \
+                --min-ink-iou 0.90
+            done
+          done
+      - name: Gate visual parity with independent MuPDF rendering
+        run: |
+          for key in sans serif; do
+            for fixture in short paragraph; do
+              python conformance/visual_cross_renderer_gate.py \
+                --dir "target/font-matrix/$key/$fixture" \
+                --dpi 144 \
+                --min-similarity 0.90 \
+                --min-ink-iou 0.90 \
+                --min-ink-similarity 0.90 \
+                --output "target/font-matrix/$key/$fixture/cross-renderer-144.json"
+            done
+          done
+      - name: Upload font-matrix evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: khmer-font-matrix-visual
+          path: target/font-matrix/**
