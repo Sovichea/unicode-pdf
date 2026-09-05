@@ -1,0 +1,111 @@
+name: Khmer cross-renderer visual calibration
+
+on:
+  push:
+    branches:
+      - test/khmer-visual-backend-parity
+  pull_request:
+
+jobs:
+  cross-renderer-visual:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.97.1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install independent visual renderers
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            fontconfig \
+            fonts-noto-core \
+            libfribidi0 \
+            libharfbuzz0b \
+            mupdf-tools \
+            poppler-utils
+      - name: Build Khmer visual baselines
+        run: |
+          python conformance/visual_backend_parity.py \
+            --fixture fixtures/khmer.txt \
+            --out target/cross-renderer/short \
+            --min-similarity 0.995
+          python conformance/visual_backend_parity.py \
+            --fixture fixtures/khmer-paragraph-natural.txt \
+            --out target/cross-renderer/paragraph \
+            --min-similarity 0.995
+      - name: Rasterize Poppler references at reader-like scales
+        run: |
+          for dir in short paragraph; do
+            python conformance/visual_multidpi_gate.py \
+              --dir target/cross-renderer/$dir \
+              --dpis 96,288 \
+              --min-similarity 0.995 \
+              --min-ink-iou 0.90 \
+              --min-ink-similarity 0.90
+          done
+      - name: Gate HarfRust parity with independent MuPDF rendering
+        run: |
+          for dir in short paragraph; do
+            for dpi in 96 144 288; do
+              python conformance/visual_cross_renderer_gate.py \
+                --dir target/cross-renderer/$dir \
+                --dpi $dpi \
+                --min-similarity 0.90 \
+                --min-ink-iou 0.90 \
+                --min-ink-similarity 0.90 \
+                --output target/cross-renderer/$dir/cross-renderer-$dpi.json
+            done
+          done
+      - name: Gate backend-invariant renderer disagreement
+        run: |
+          for dir in short paragraph; do
+            for dpi in 96 144 288; do
+              poppler_dir=target/cross-renderer/$dir
+              if [ "$dpi" != "144" ]; then
+                poppler_dir=target/cross-renderer/$dir/dpi-$dpi
+              fi
+              python conformance/visual_renderer_consistency_gate.py \
+                --dir target/cross-renderer/$dir \
+                --poppler-dir "$poppler_dir" \
+                --dpi $dpi \
+                --max-metric-delta 0.001 \
+                --output target/cross-renderer/$dir/renderer-consistency-$dpi.json
+            done
+          done
+      - name: Gate localized renderer disagreement
+        run: |
+          for dir in short paragraph; do
+            python conformance/visual_renderer_window_consistency_gate.py \
+              --dir target/cross-renderer/$dir \
+              --dpi 144 \
+              --window-fraction 0.05 \
+              --stride-fraction 0.025 \
+              --max-window-metric-delta 0.001 \
+              --output target/cross-renderer/$dir/renderer-window-consistency-144.json
+          done
+      - name: Calibrate localized renderer disagreement sensitivity
+        run: |
+          for dir in short paragraph; do
+            python conformance/visual_renderer_window_sensitivity.py \
+              --dir target/cross-renderer/$dir \
+              --dpi 144 \
+              --width-fraction 0.025 \
+              --x-position 0.4875 \
+              --tone 160
+            python conformance/visual_renderer_window_consistency_gate.py \
+              --dir target/cross-renderer/$dir \
+              --dpi 144 \
+              --mutool-dir-name mutool-144dpi-renderer-sensitivity-w0p025-xp0p49-v160 \
+              --window-fraction 0.05 \
+              --stride-fraction 0.025 \
+              --expect-delta-above 0.02 \
+              --output target/cross-renderer/$dir/renderer-window-sensitivity-144.json
+          done
+      - name: Upload cross-renderer evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: khmer-cross-renderer-visual
+          path: target/cross-renderer/**

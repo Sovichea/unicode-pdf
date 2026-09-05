@@ -1,0 +1,53 @@
+name: Khmer stroke-centroid visual calibration
+
+on:
+  push:
+    branches:
+      - test/khmer-visual-backend-parity
+  pull_request:
+
+jobs:
+  stroke-centroid-visual:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.97.1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install visual reference dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fontconfig fonts-noto-core libfribidi0 libharfbuzz0b poppler-utils
+      - name: Build Khmer visual baselines
+        run: |
+          python conformance/visual_backend_parity.py --fixture fixtures/khmer.txt --out target/stroke-centroid/short --min-similarity 0.995
+          python conformance/visual_backend_parity.py --fixture fixtures/khmer-paragraph-natural.txt --out target/stroke-centroid/paragraph --min-similarity 0.995
+      - name: Gate clean localized Khmer stroke centroids
+        run: |
+          for dir in short paragraph; do
+            python conformance/visual_stroke_centroid_window_gate.py \
+              --dir target/stroke-centroid/$dir \
+              --window-fraction 0.02 --stride-fraction 0.01 \
+              --ink-threshold 250 --min-similarity 0.90 \
+              --output target/stroke-centroid/$dir/stroke-centroid-clean-results.json
+          done
+      - name: Calibrate localized Khmer stroke displacement
+        run: |
+          for dir in short paragraph; do
+            python conformance/visual_metric_stroke_displacement_sensitivity.py \
+              --dir target/stroke-centroid/$dir \
+              --width-fraction 0.10 --x-position 0.40 --dx 2
+            python conformance/visual_stroke_centroid_window_gate.py \
+              --dir target/stroke-centroid/$dir \
+              --candidate-prefix sensitivity-stroke-displacement-w0p100-xp0p40-dx2/system-harfbuzz-stroke-displacement-w0p100-xp0p40-dx2 \
+              --window-fraction 0.02 --stride-fraction 0.01 \
+              --ink-threshold 250 --expect-below 0.90 \
+              --output target/stroke-centroid/$dir/stroke-centroid-calibration.json
+          done
+      - name: Upload stroke-centroid evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: khmer-stroke-centroid-visual
+          path: target/stroke-centroid/**

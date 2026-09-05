@@ -1,0 +1,69 @@
+name: Khmer boundary-distance visual calibration
+
+on:
+  push:
+    branches:
+      - test/khmer-visual-backend-parity
+  pull_request:
+
+jobs:
+  boundary-distance-visual:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.97.1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install visual reference dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            fontconfig \
+            fonts-noto-core \
+            libfribidi0 \
+            libharfbuzz0b \
+            poppler-utils
+      - name: Build Khmer visual baselines
+        run: |
+          python conformance/visual_backend_parity.py \
+            --fixture fixtures/khmer.txt \
+            --out target/boundary-distance/short \
+            --min-similarity 0.995
+          python conformance/visual_backend_parity.py \
+            --fixture fixtures/khmer-paragraph-natural.txt \
+            --out target/boundary-distance/paragraph \
+            --min-similarity 0.995
+      - name: Gate clean Khmer boundary displacement
+        run: |
+          for dir in short paragraph; do
+            python conformance/visual_boundary_distance_window_gate.py \
+              --dir target/boundary-distance/$dir \
+              --window-fraction 0.05 \
+              --stride-fraction 0.025 \
+              --distance-tolerance 5 \
+              --min-similarity 0.90 \
+              --output target/boundary-distance/$dir/boundary-distance-clean-results.json
+          done
+      - name: Calibrate area-preserving Khmer outline defect
+        run: |
+          for dir in short paragraph; do
+            python conformance/visual_metric_boundary_sensitivity.py \
+              --dir target/boundary-distance/$dir \
+              --min-component-pixels 30 \
+              --max-component-pixels 600
+            python conformance/visual_boundary_distance_window_gate.py \
+              --dir target/boundary-distance/$dir \
+              --candidate-prefix sensitivity-boundary-area-preserving/system-harfbuzz-boundary-area-preserving \
+              --window-fraction 0.05 \
+              --stride-fraction 0.025 \
+              --distance-tolerance 5 \
+              --expect-below 0.90 \
+              --output target/boundary-distance/$dir/boundary-distance-calibration.json
+          done
+      - name: Upload boundary-distance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: khmer-boundary-distance-visual
+          path: target/boundary-distance/**

@@ -1,0 +1,71 @@
+name: Khmer counter visual calibration
+
+on:
+  push:
+    branches:
+      - test/khmer-visual-backend-parity
+  pull_request:
+
+jobs:
+  counter-visual:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.97.1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install visual reference dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            fontconfig \
+            fonts-noto-core \
+            libfribidi0 \
+            libharfbuzz0b \
+            poppler-utils
+      - name: Build Khmer visual baselines
+        run: |
+          python conformance/visual_backend_parity.py \
+            --fixture fixtures/khmer.txt \
+            --out target/counter-visual/short \
+            --min-similarity 0.995
+          python conformance/visual_backend_parity.py \
+            --fixture fixtures/khmer-paragraph-natural.txt \
+            --out target/counter-visual/paragraph \
+            --min-similarity 0.995
+      - name: Gate clean Khmer glyph counters
+        run: |
+          for dir in short paragraph; do
+            python conformance/visual_counter_window_gate.py \
+              --dir target/counter-visual/$dir \
+              --window-fraction 0.10 \
+              --stride-fraction 0.05 \
+              --min-hole-pixels 2 \
+              --max-hole-pixels 96 \
+              --max-counter-delta 0 \
+              --output target/counter-visual/$dir/counter-clean-results.json
+          done
+      - name: Calibrate filled Khmer glyph counter
+        run: |
+          for dir in short paragraph; do
+            python conformance/visual_metric_counter_sensitivity.py \
+              --dir target/counter-visual/$dir \
+              --min-hole-pixels 4 \
+              --max-hole-pixels 12
+            python conformance/visual_counter_window_gate.py \
+              --dir target/counter-visual/$dir \
+              --candidate-prefix sensitivity-counter-h4-12/system-harfbuzz-counter-h4-12 \
+              --window-fraction 0.10 \
+              --stride-fraction 0.05 \
+              --min-hole-pixels 2 \
+              --max-hole-pixels 96 \
+              --expect-above 0.5 \
+              --output target/counter-visual/$dir/counter-filled-calibration.json
+          done
+      - name: Upload counter evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: khmer-counter-visual
+          path: target/counter-visual/**
