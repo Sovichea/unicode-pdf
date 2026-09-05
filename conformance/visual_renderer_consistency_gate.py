@@ -31,6 +31,14 @@ def pages(directory: Path, prefix: str) -> list[Path]:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--dir", type=Path, required=True)
+    parser.add_argument(
+        "--poppler-dir",
+        type=Path,
+        help=(
+            "directory containing Poppler rasters; defaults to --dir. "
+            "Use this for multi-DPI rasters generated under dpi-<N>."
+        ),
+    )
     parser.add_argument("--dpi", type=int, default=144)
     parser.add_argument("--ink-threshold", type=int, default=250)
     parser.add_argument("--reference-prefix", default="system-harfbuzz")
@@ -52,7 +60,10 @@ def compare_renderer_pair(
 def main() -> int:
     args = parse_args()
     directory = args.dir
+    poppler_dir = args.poppler_dir or directory
     mutool_dir = directory / f"mutool-{args.dpi}dpi"
+    if not poppler_dir.is_dir():
+        raise RuntimeError(f"missing Poppler raster directory {poppler_dir}")
     if not mutool_dir.is_dir():
         raise RuntimeError(
             f"missing MuPDF raster directory {mutool_dir}; run visual_cross_renderer_gate.py first"
@@ -61,7 +72,7 @@ def main() -> int:
     backends: dict[str, dict[str, object]] = {}
     for prefix in (args.reference_prefix, args.candidate_prefix):
         backends[prefix] = compare_renderer_pair(
-            pages(directory, prefix),
+            pages(poppler_dir, prefix),
             pages(mutool_dir, prefix),
             ink_threshold=args.ink_threshold,
         )
@@ -88,6 +99,7 @@ def main() -> int:
         "ink_threshold": args.ink_threshold,
         "reference_prefix": args.reference_prefix,
         "candidate_prefix": args.candidate_prefix,
+        "poppler_dir": str(poppler_dir),
         "max_metric_delta": args.max_metric_delta,
         "metric_deltas": deltas,
         "maximum_metric_delta": maximum_delta,
