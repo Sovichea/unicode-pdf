@@ -52,17 +52,19 @@ jobs:
                 --min-ink-iou 0.90
             done
           done
-      - name: Gate visual parity with independent MuPDF rendering
+      - name: Gate visual parity with independent MuPDF rendering across DPI
         run: |
           for key in sans serif; do
             for fixture in short paragraph; do
-              python conformance/visual_cross_renderer_gate.py \
-                --dir "target/font-matrix/$key/$fixture" \
-                --dpi 144 \
-                --min-similarity 0.90 \
-                --min-ink-iou 0.90 \
-                --min-ink-similarity 0.90 \
-                --output "target/font-matrix/$key/$fixture/cross-renderer-144.json"
+              for dpi in 96 144 288; do
+                python conformance/visual_cross_renderer_gate.py \
+                  --dir "target/font-matrix/$key/$fixture" \
+                  --dpi "$dpi" \
+                  --min-similarity 0.90 \
+                  --min-ink-iou 0.90 \
+                  --min-ink-similarity 0.90 \
+                  --output "target/font-matrix/$key/$fixture/cross-renderer-$dpi.json"
+              done
             done
           done
       - name: Upload font-matrix evidence
