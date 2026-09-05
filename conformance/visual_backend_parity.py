@@ -27,10 +27,21 @@ def capture(command: list[str]) -> str:
 
 
 def resolve_font(family: str) -> Path:
-    match = capture(["fc-match", "-f", "%{file}\n", family]).splitlines()
+    match = capture(["fc-match", "-f", "%{file}\t%{family}\n", family]).splitlines()
     if not match:
         raise RuntimeError(f"fontconfig did not resolve {family!r}")
-    path = Path(match[0])
+
+    fields = match[0].split("\t", 1)
+    if len(fields) != 2:
+        raise RuntimeError(f"unexpected fontconfig result for {family!r}: {match[0]!r}")
+    file_name, resolved_families = fields
+    aliases = {item.strip().casefold() for item in resolved_families.split(",")}
+    if family.strip().casefold() not in aliases:
+        raise RuntimeError(
+            f"fontconfig substituted {resolved_families!r} for requested family {family!r}"
+        )
+
+    path = Path(file_name)
     if not path.is_file():
         raise RuntimeError(f"resolved font does not exist: {path}")
     return path
