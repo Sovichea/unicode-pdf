@@ -1,0 +1,52 @@
+name: Khmer multipage visual calibration
+
+on:
+  push:
+    branches:
+      - test/khmer-visual-backend-parity
+  pull_request:
+
+jobs:
+  multipage-visual:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.97.1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install independent visual renderers and Khmer font
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            fontconfig \
+            fonts-noto-core \
+            libfribidi0 \
+            libharfbuzz0b \
+            mupdf-tools \
+            poppler-utils
+      - name: Build multipage Khmer visual baseline
+        run: |
+          python conformance/visual_backend_parity.py \
+            --fixture fixtures/khmer-paragraph-multipage.txt \
+            --font-family 'Noto Sans Khmer' \
+            --out target/multipage-visual \
+            --min-similarity 0.995 \
+            --min-ink-iou 0.90
+      - name: Gate multipage visual parity with independent MuPDF rendering
+        run: |
+          for dpi in 96 144; do
+            python conformance/visual_cross_renderer_gate.py \
+              --dir target/multipage-visual \
+              --dpi "$dpi" \
+              --min-similarity 0.90 \
+              --min-ink-iou 0.90 \
+              --min-ink-similarity 0.90 \
+              --output "target/multipage-visual/cross-renderer-$dpi.json"
+          done
+      - name: Upload multipage visual evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: khmer-multipage-visual
+          path: target/multipage-visual/**
