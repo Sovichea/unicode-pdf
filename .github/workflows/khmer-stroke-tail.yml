@@ -1,0 +1,55 @@
+name: Khmer stroke-tail visual calibration
+
+on:
+  push:
+    branches:
+      - test/khmer-visual-backend-parity
+  pull_request:
+
+jobs:
+  stroke-tail-visual:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.97.1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install visual reference dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fontconfig fonts-noto-core libfribidi0 libharfbuzz0b poppler-utils
+      - name: Build Khmer visual baselines
+        run: |
+          python conformance/visual_backend_parity.py --fixture fixtures/khmer.txt --out target/stroke-tail/short --min-similarity 0.995
+          python conformance/visual_backend_parity.py --fixture fixtures/khmer-paragraph-natural.txt --out target/stroke-tail/paragraph --min-similarity 0.995
+      - name: Gate clean localized Khmer stroke error tails
+        run: |
+          for dir in short paragraph; do
+            python conformance/visual_stroke_tail_window_gate.py \
+              --dir target/stroke-tail/$dir \
+              --window-fraction 0.05 --stride-fraction 0.025 \
+              --ink-threshold 250 --radius 2 --min-support-pixels 48 \
+              --quantile 0.95 --min-percentile-similarity 0.90 \
+              --output target/stroke-tail/$dir/stroke-tail-clean-results.json
+          done
+      - name: Calibrate concentrated Khmer stroke-tail blur error
+        run: |
+          for dir in short paragraph; do
+            python conformance/visual_metric_blur_sensitivity.py \
+              --dir target/stroke-tail/$dir \
+              --width-fraction 0.10 --x-position 0.40 --passes 3
+            python conformance/visual_stroke_tail_window_gate.py \
+              --dir target/stroke-tail/$dir \
+              --candidate-prefix sensitivity-blur-w0p100-xp0p40-p3/system-harfbuzz-blur-w0p100-xp0p40-p3 \
+              --window-fraction 0.05 --stride-fraction 0.025 \
+              --ink-threshold 250 --radius 2 --min-support-pixels 48 \
+              --quantile 0.95 --expect-below 0.90 \
+              --output target/stroke-tail/$dir/stroke-tail-calibration.json
+          done
+      - name: Upload stroke-tail evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: khmer-stroke-tail-visual
+          path: target/stroke-tail/**

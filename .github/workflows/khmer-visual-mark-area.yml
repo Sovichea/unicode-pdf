@@ -1,0 +1,80 @@
+name: Khmer mark-area visual calibration
+
+on:
+  push:
+    branches:
+      - test/khmer-visual-backend-parity
+  pull_request:
+
+jobs:
+  mark-area-visual:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.97.1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install visual reference dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            fontconfig \
+            fonts-noto-core \
+            libfribidi0 \
+            libharfbuzz0b \
+            poppler-utils
+      - name: Build Khmer visual baselines
+        run: |
+          python conformance/visual_backend_parity.py \
+            --fixture fixtures/khmer.txt \
+            --out target/mark-area/short \
+            --min-similarity 0.995
+          python conformance/visual_backend_parity.py \
+            --fixture fixtures/khmer-paragraph-natural.txt \
+            --out target/mark-area/paragraph \
+            --min-similarity 0.995
+      - name: Gate clean Khmer mark ink area
+        run: |
+          for dir in short paragraph; do
+            for zone in upper lower; do
+              python conformance/visual_mark_area_window_gate.py \
+                --dir target/mark-area/$dir \
+                --zone $zone \
+                --zone-fraction 0.25 \
+                --window-fraction 0.05 \
+                --stride-fraction 0.025 \
+                --min-ink-area-similarity 0.90 \
+                --output target/mark-area/$dir/mark-area-window-$zone-results.json
+            done
+          done
+      - name: Calibrate partial Khmer mark erosion
+        run: |
+          for dir in short paragraph; do
+            for zone in upper lower; do
+              python conformance/visual_metric_mark_area_sensitivity.py \
+                --dir target/mark-area/$dir \
+                --zone $zone \
+                --zone-fraction 0.25 \
+                --min-component-pixels 20 \
+                --max-component-pixels 80 \
+                --shave-fraction 0.30
+              label="$zone-z0p250-s0p300"
+              candidate="sensitivity-mark-area-$label/system-harfbuzz-mark-area-$label"
+              python conformance/visual_mark_area_window_gate.py \
+                --dir target/mark-area/$dir \
+                --candidate-prefix "$candidate" \
+                --zone $zone \
+                --zone-fraction 0.25 \
+                --window-fraction 0.05 \
+                --stride-fraction 0.025 \
+                --expect-below 0.90 \
+                --output target/mark-area/$dir/mark-area-$zone-partial-erosion-calibration.json
+            done
+          done
+      - name: Upload mark-area evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: khmer-mark-area-visual
+          path: target/mark-area/**

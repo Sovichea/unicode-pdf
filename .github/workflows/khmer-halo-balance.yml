@@ -1,0 +1,56 @@
+name: Khmer halo-balance visual calibration
+
+on:
+  push:
+    branches:
+      - test/khmer-visual-backend-parity
+  pull_request:
+
+jobs:
+  halo-balance-visual:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.97.1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install visual reference dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fontconfig fonts-noto-core libfribidi0 libharfbuzz0b poppler-utils
+      - name: Build Khmer visual baselines
+        run: |
+          python conformance/visual_backend_parity.py --fixture fixtures/khmer.txt --out target/halo-balance/short --min-similarity 0.995
+          python conformance/visual_backend_parity.py --fixture fixtures/khmer-paragraph-natural.txt --out target/halo-balance/paragraph --min-similarity 0.995
+      - name: Gate clean localized Khmer halo balance
+        run: |
+          for dir in short paragraph; do
+            python conformance/visual_halo_balance_window_gate.py \
+              --dir target/halo-balance/$dir \
+              --window-fraction 0.04 --stride-fraction 0.02 \
+              --core-threshold 200 --radius 2 --min-halo-pixels 24 \
+              --min-similarity 0.90 \
+              --output target/halo-balance/$dir/halo-balance-clean-results.json
+          done
+      - name: Calibrate one-sided Khmer antialias halo
+        run: |
+          for dir in short paragraph; do
+            python conformance/visual_metric_halo_sensitivity.py \
+              --dir target/halo-balance/$dir \
+              --width-fraction 0.12 --x-position 0.40 \
+              --core-threshold 200 --halo-value 210
+            python conformance/visual_halo_balance_window_gate.py \
+              --dir target/halo-balance/$dir \
+              --candidate-prefix sensitivity-halo-w0p120-xp0p40-v210/system-harfbuzz-halo-w0p120-xp0p40-v210 \
+              --window-fraction 0.04 --stride-fraction 0.02 \
+              --core-threshold 200 --radius 2 --min-halo-pixels 24 \
+              --expect-below 0.90 \
+              --output target/halo-balance/$dir/halo-balance-calibration.json
+          done
+      - name: Upload halo-balance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: khmer-halo-balance-visual
+          path: target/halo-balance/**

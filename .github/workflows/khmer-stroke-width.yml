@@ -1,0 +1,55 @@
+name: Khmer stroke-width visual calibration
+
+on:
+  push:
+    branches:
+      - test/khmer-visual-backend-parity
+  pull_request:
+
+jobs:
+  stroke-width-visual:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.97.1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install visual reference dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y fontconfig fonts-noto-core libfribidi0 libharfbuzz0b poppler-utils
+      - name: Build Khmer visual baselines
+        run: |
+          python conformance/visual_backend_parity.py --fixture fixtures/khmer.txt --out target/stroke-width/short --min-similarity 0.995
+          python conformance/visual_backend_parity.py --fixture fixtures/khmer-paragraph-natural.txt --out target/stroke-width/paragraph --min-similarity 0.995
+      - name: Gate clean localized Khmer stroke widths
+        run: |
+          for dir in short paragraph; do
+            python conformance/visual_stroke_width_window_gate.py \
+              --dir target/stroke-width/$dir \
+              --window-fraction 0.05 --stride-fraction 0.025 \
+              --ink-threshold 250 --max-run 20 --min-runs 20 \
+              --min-similarity 0.90 \
+              --output target/stroke-width/$dir/stroke-width-clean-results.json
+          done
+      - name: Calibrate localized Khmer stroke thickening
+        run: |
+          for dir in short paragraph; do
+            python conformance/visual_metric_stroke_width_sensitivity.py \
+              --dir target/stroke-width/$dir \
+              --width-fraction 0.10 --x-position 0.40 --passes 1
+            python conformance/visual_stroke_width_window_gate.py \
+              --dir target/stroke-width/$dir \
+              --candidate-prefix sensitivity-stroke-width-w0p100-xp0p40-p1/system-harfbuzz-stroke-width-w0p100-xp0p40-p1 \
+              --window-fraction 0.05 --stride-fraction 0.025 \
+              --ink-threshold 250 --max-run 20 --min-runs 20 \
+              --expect-below 0.90 \
+              --output target/stroke-width/$dir/stroke-width-calibration.json
+          done
+      - name: Upload stroke-width evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: khmer-stroke-width-visual
+          path: target/stroke-width/**
